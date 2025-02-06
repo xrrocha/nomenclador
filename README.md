@@ -105,13 +105,14 @@ herramientas _no_ es trivial y trae consigo su propia carga de complejidad
 impuesta por los algoritmos seleccionados y por las herramientas mismas.
 
 Un científico de datos apresurado podría querer emplear el popular algoritmo
-de clusterización `k-means`. Pero esto tampoco funcionaría porque no es simple
-determinar en cuántos clústers querríamos dividir cada grupo de nombres por
-área geográfica. Para emplear algoritmos de clustering capaces de descubrir
-grupos naturales dentro del corpus (p. ejm. `dbscan`) tenemos que identificar
-métricas de similitud documental resistentes a los errores de transcripción
-de nuestro corpus (p. ejm. `tf-idf`) en combinación con métricas apropiadas
-de similitud de cadenas de caracteres (p. ejm. `damerau-levenshtein`).
+de clusterización `k-means`. Pero esto tampoco funcionaría porque no es
+factible anticipar en cuántos clústers querríamos dividir cada grupo de
+nombres por área geográfica. Para emplear algoritmos de clustering capaces
+de descubrir grupos naturales dentro del corpus (p. ejm. `dbscan`) tenemos
+que identificar métricas de similitud documental resistentes a los errores
+de transcripción de nuestro corpus (p. ejm. `tf-idf`) en combinación con
+métricas apropiadas de similitud de cadenas de caracteres (p. ejm.
+`damerau-levenshtein`).
 
 Dadas estas consideraciones nos proponemos los siguientes objetivos dentro
 de nuestra excursión intelectual:
@@ -122,4 +123,136 @@ de nuestra excursión intelectual:
   Postgres) de forma que el proceso completo se pueda implementar de manera
   simple e inteligible... _empleando únicamente SQL_!**
 
-## Estrategia Nomenclador
+## Estrategia Inicial de Exploración
+
+El primer paso en la exploración de una solución apropiada involucra:
+
+- Normalizar los nombres removiendo caracteres no alfanuméricos
+- Clusterizar los nombres resultantes empleando:
+  - La métrica de similitud documental `jaccard` (también conocida como
+    `tanimoto`)
+  - El algoritmo de clusterización `dbscan`
+- Identificar y corregir errores de transcripción y ortografía, reforzando
+  la normalización de los nombres
+
+Al analizar los resultados se irá refinando el proceso, empleando, por
+ejemplo una métrica combinada de distancia de edición (p. ejm. `levenshtein`)
+y de co-ocurrencia de términos.
+
+## Carga de datos en Postgres
+
+El primer paso es cargar nuestro corpus a Postgres:
+
+```sql
+CREATE TABLE nombres (
+    area_geografica VARCHAR(6)  NOT NULL,
+    nombre          VARCHAR(48) NOT NULL,
+    ocurrencias     INTEGER     NOT NULL
+);
+
+\COPY nombres FROM ../src/corpus.tsv DELIMITER E'\t';
+```
+
+Los primeros registros de esta tabla lucen como:
+
+```sql
+  area  |                  nombre                  | ocurrencias
+--------+------------------------------------------+-------------
+ 010101 | 12 DE ABRIL ESC                          |           3
+ 010101 | 12 DE ABRIL ESC.                         |           2
+ 010101 | 13 DE ABRIL ESC                          |           1
+ 010101 | 2CARLOS CRESPI ESC                       |           1
+ 010101 | 3 DE NAVIEMBRE ESC                       |           1
+ 010101 | 3 DE NO VIEMBRE ESC                      |           1
+ 010101 | 3 DE NOVIEMBRE                           |           1
+ 010101 | 3 DE NOVIEMBRE (ESC)                     |           9
+ 010101 | 3 DE NOVIEMBRE /ESC                      |           1
+ 010101 | 3 DE NOVIEMBRE ESC                       |          20
+```
+
+## Normalización de Nombres
+
+Nuestra estrategia inicial de normalización de los nombres es simple:
+remover todo carácter no alfabético o numérico de cada palabra del nombre:
+
+```sql
+-- Generar nombres normalizados
+ALTER TABLE nombres ADD COLUMN nombre_normalizado VARCHAR(48);
+
+UPDATE nombres
+SET    nombre_normalizado = (
+            SELECT  ARRAY_TO_STRING(ARRAY_AGG(palabra), ' ')
+            FROM    (
+                        SELECT REGEXP_SPLIT_TO_TABLE(
+                            nombre,
+                            '[^[:alnum:]]'
+                        ) AS palabra
+                    )
+            WHERE   palabra != ''
+       );
+```
+
+Con los nombres normalizados nuestra tabla `nombres` ahora luce como:
+
+```sql
+  area  |            nombre             | ocurrencias |      nombre_normalizado
+--------+-------------------------------+-------------+------------------------------
+ 010101 | ALBORADA JARDIN               |           1 | ALBORADA JARDIN
+ 010101 | ALFONSO CORDERO (ESC)         |           2 | ALFONSO CORDERO ESC
+ 010101 | ALFONSO CORDERO ESC           |          15 | ALFONSO CORDERO ESC
+ 010101 | ALFONSO CORDERO ESC.          |           7 | ALFONSO CORDERO ESC
+ 010101 | ALFONSO CORDERO PALACIOS ESC  |           3 | ALFONSO CORDERO PALACIOS ESC
+ 010101 | ALFONSO CORDERO PALACIOS ESC. |           3 | ALFONSO CORDERO PALACIOS ESC
+ 010101 | ALKFONSO CORDERO ESC          |           1 | ALKFONSO CORDERO ESC
+ 010101 | ALKFONSO CORDERO ESEC         |           1 | ALKFONSO CORDERO ESEC
+ 010101 | AMERICANO BILINGUE JARD.      |           1 | AMERICANO BILINGUE JARD
+ 010101 | AMERICANO COL                 |           3 | AMERICANO COL
+ 010101 | AMERICANO COL.                |           3 | AMERICANO COL
+ 010101 | AMERICANO ESC                 |           8 | AMERICANO ESC
+```
+
+Aquí ya notamos que la remoción de los caracteres especiales reduce el número de
+distintos nombres:
+
+```sql
+SELECT COUNT(DISTINCT nombre)             AS nombres,
+       COUNT(DISTINCT nombre_normalizado) AS nombres_normalizados
+FROM NOMBRES;
+ nombres | nombres_normalizados
+ --------+---------------------
+  301681 | 228977
+```
+
+El número de distintos nombres se ha reducido en más de 72.000 luego de la
+normalización!
+
+El siguiente paso es crear una tabla de nombres normalizados por área
+geográfica:
+
+```sql
+DROP TABLE IF EXISTS nombres_normalizados;
+
+CREATE TABLE nombres_normalizados AS
+SELECT   area                 AS area,
+         nombre_normalizado   AS nombre_normalizado,
+         COUNT(*)             AS cuenta_nombres,
+         SUM(ocurrencias)     AS ocurrencias
+FROM     nombres
+GROUP BY area,
+         nombre_normalizado
+ORDER BY 1, 2;
+```
+
+Los primeros nombres normalizados lucen como:
+
+```
+  area  |            nombre_normalizado            | cuenta_nombres | ocurrencias
+--------+------------------------------------------+----------------+-------------
+ 010101 | 12 DE ABRIL ESC                          |              2 |           5
+ 010101 | 13 DE ABRIL ESC                          |              1 |           1
+ 010101 | 2CARLOS CRESPI ESC                       |              1 |           1
+ 010101 | 3 DE NAVIEMBRE ESC                       |              1 |           1
+ 010101 | 3 DE NOVIEMBRE                           |              1 |           1
+ 010101 | 3 DE NO VIEMBRE ESC                      |              1 |           1
+ 010101 | 3 DE NOVIEMBRE ESC                       |              5 |          40
+```
