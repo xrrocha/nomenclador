@@ -26,3 +26,15 @@ SET    nombre_normalizado = (
                     )
             WHERE   palabra != ''
        );
+
+-- Generar perfil de nombres normalizados
+ALTER TABLE nombres_normalizados ADD COLUMN perfil VARCHAR[];
+
+UPDATE nombres_normalizados
+SET perfil = (
+    Select ARRAY_AGG(palabra ORDER BY PALABRA)
+    FROM (
+        SELECT DISTINCT palabra
+        FROM REGEXP_SPLIT_TO_TABLE(nombre_normalizado, ' ') AS palabra
+    )
+);

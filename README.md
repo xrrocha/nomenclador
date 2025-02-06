@@ -256,3 +256,55 @@ Los primeros nombres normalizados lucen como:
  010101 | 3 DE NO VIEMBRE ESC                      |              1 |           1
  010101 | 3 DE NOVIEMBRE ESC                       |              5 |          40
 ```
+
+Para efectos de clusterización, estos nombres nombres normalizados necesitan ser
+vistos como _conjuntos_ sin duplicados y sin preservar el ordenamiento original
+de sus palabras. A este conjunto de palabras formado a partir del nombre
+normalizado lo denominaremos `perfil`:
+
+
+```sql
+ALTER TABLE nombres_normalizados ADD COLUMN perfil VARCHAR[];
+
+UPDATE nombres_normalizados
+SET perfil = (
+    Select ARRAY_AGG(palabra ORDER BY PALABRA)
+    FROM (
+        SELECT DISTINCT palabra
+        FROM REGEXP_SPLIT_TO_TABLE(nombre_normalizado, ' ') AS palabra
+    )
+);
+```
+
+Los primeros perfiles lucen como:
+
+```
+  area  |        perfil         | nombre_normalizado
+--------+-----------------------+---------------------
+ 010101 | {12,ABRIL,DE,ESC}     | 12 DE ABRIL ESC
+ 010101 |                       | ESC 12 DE ABRIL
+ 010101 | {13,ABRIL,DE,ESC}     | 13 DE ABRIL ESC
+ 010101 | {2CARLOS,CRESPI,ESC}  | 2CARLOS CRESPI ESC
+ 010101 | {3,DE,ESC,NAVIEMBRE}  | 3 DE NAVIEMBRE ESC
+ 010101 | {3,DE,ESC,NO,VIEMBRE} | 3 DE NO VIEMBRE ESC
+ 010101 | {3,DE,ESC,NOVIEMBRE}  | 3 DE NOVIEMBRE ESC
+ 010101 |                       | ESC 3 DE NOVIEMBRE
+ 010101 | {3,DE,NOVIEMBRE}      | 3 DE NOVIEMBRE
+ 010101 | {3,ESC,NOV}           | 3 NOV ESC
+```
+
+Es de notar que múltiples nombres normalizados distintos pueden dar origen a un
+mismo perfil (como `{12,ABRIL,DE,ESC` y `{3,DE,ESC,NOVIEMBRE}` arriba). Esto
+reduce aun más el número de distintos nombres que deben ser clusterizados:
+
+```sql
+SELECT COUNT(DISTINCT perfil), COUNT(DISTINCT nombre_normalizado)
+FROM   ombres_normalizados ;
+
+count  | count
+-------+--------
+214869 | 228977
+```
+
+Esto reduce en más de 14.000 el numero global de distintos nombres que se
+deben clusterizar! 👍
