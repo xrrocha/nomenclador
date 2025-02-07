@@ -119,9 +119,9 @@ de excursión intelectual.
 Nuestros objetivos son:
 
 - Estudiar y _entender_ el proceso de clusterización (evitando la ilusión de querer
-  delegarlo de forma simple en alguna herramienta "establecida")
+  delegarlo de forma "simple" en alguna herramienta "establecida")
 - **Sacar partido de capacidades avanzadas de bases de datos como Postgres de forma
-  que el proceso completo se pueda implementar de forma simple e inteligible...
+  que el proceso completo se implemente de forma simple e inteligible...
   _empleando tan solo SQL_!**
 
 ## Estrategia Inicial de Exploración
@@ -338,4 +338,4 @@ Los primeros registros de nuestra tabla de `perfiles` lucen como:
 | 090112 | {471,ESC,NOMBRE,SIN}              |            5 |      12 |          32|
 | 090112 | {426,ESC,JOSE,MERCHAN,MONTENEGRO} |            5 |      13 |          24|
 
-Con estos perfiles ya podemos proceder a una forma simple de clusterización.
+Con estos perfiles podemos proceder ya a una forma simple de clusterización.
