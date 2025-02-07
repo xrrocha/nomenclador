@@ -148,7 +148,7 @@ CREATE TABLE nombres (
     ocurrencias     INTEGER     NOT NULL
 );
 
-\COPY nombres FROM ../src/corpus.tsv DELIMITER E'\t';
+\COPY nombres FROM corpus.tsv DELIMITER E'\t';
 ```
 
 Los primeros registros de esta tabla lucen como:
@@ -172,15 +172,15 @@ Nuestra estrategia inicial de normalización de los nombres es simple:
 remover todo carácter no alfabético o numérico de cada palabra del nombre:
 
 ```sql
-ALTER TABLE nombres ADD COLUMN nombre_normalizado VARCHAR(48);
+ALTER TABLE nombres
+ADD COLUMN nombre_normalizado VARCHAR(48);
 
 UPDATE nombres
 SET    nombre_normalizado = (
     SELECT  ARRAY_TO_STRING(ARRAY_AGG(palabra), ' ')
     FROM    (
         SELECT REGEXP_SPLIT_TO_TABLE(
-                   nombre,
-                   '[^[:alnum:]]'
+                   nombre, '[^[:alnum:]]'
                ) AS palabra
     )
     WHERE   palabra != ''
@@ -250,10 +250,11 @@ Los primeros nombres normalizados lucen como:
 |        | 3 DE NOVIEMBRE ESC  |
 
 Para efectos de clusterización, estos nombres nombres normalizados necesitan ser
-vistos como _conjuntos_ sin duplicados y sin preservar el ordenamiento original
-de sus palabras. A este conjunto de palabras formado a partir del nombre
-normalizado lo denominaremos `perfil`:
+vistos como _conjuntos_ que no contienen duplicados y cuyo proceso es insensible
+al ordenamiento original de las palabras.
 
+A este conjunto de distintas palabras formado a partir de cada nombre normalizado
+lo denominaremos `perfil`:
 
 ```sql
 ALTER TABLE nombres_normalizados
@@ -301,11 +302,11 @@ count  | count
 214869 | 228977
 ```
 
-Esto reduce en más de 14.000 el numero global de distintos nombres que se
-deben clusterizar! 👍
+Esto reduce en más de 14.000 el numero global de distintos nombres que se deben
+clusterizar! 👍
 
-Como último paso de normalización previo a la clusterización crearemos una tabla
-de perfiles:
+Como último paso de normalización previo a la clusterización crearemos una tabla de
+perfiles:
 
 ```sql
 DROP TABLE IF EXISTS perfiles;
@@ -325,7 +326,7 @@ ORDER BY 1, 2;
 Los primeros registros de nuestra tabla de `perfiles` lucen como:
 
 |  Área  |              Perfil               | Normalizados | Nombres | Ocurrencias|
-|--------|-----------------------------------|--------------|---------|------------|
+|--------|-----------------------------------|-------------:|--------:|-----------:|
 | 090112 | {471,ESC,N,S}                     |            9 |      24 |          60|
 | 092056 | {1,ESC,NN,NOCTURNA,S}             |            6 |       7 |          12|
 | 092056 | {ESC,N,NOCTURNA,S}                |            5 |       8 |          14|
