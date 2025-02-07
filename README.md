@@ -1,4 +1,4 @@
-# Nomenclador: Una Aventura de Estandarización de Datos
+# Nomenclador: Una Aventura en Estandarización de Datos
 
 ## Problema Original
 
@@ -6,13 +6,13 @@ Tenemos un corpus de 439.761 nombres de escuelas localizadas en 1.166
 áreas geográficas.
 
 La mayoría de estos nombres contienen errores de transcripción y ortografía,
-así como variantes en el orden y ocurrencia de las palabras o en el uso de
+así como variantes en el orden y ocurrencia de palabras o en el uso de
 abreviaturas.
 
 La siguiente tabla ilustra algunas variantes de dos de los nombres más
 frecuentes en el corpus:
 
-|       Fe y Alegría      |        Manuel Abad       |
+|       _Fe y Alegría_    |        _Manuel Abad_     |
 |-------------------------|--------------------------|
 |FE ALEGRIA # 1 ESC       |COL. MANUEL ABAD #37      |
 |FE ALEGRIA #1 ESC        |COLEGIO MANUEL ABAD       |
@@ -120,7 +120,7 @@ como un ejercicio de excursión intelectual. Nuestros objetivos son:
   delegarlo de forma simple en alguna herramienta "establecida"
 - **Sacar partido de capacidades avanzadas de SQL (como aquellas presentes en
   Postgres) de forma que el proceso completo se pueda implementar de forma
-  simple... _empleando únicamente SQL_!**
+  simple... _empleando tan solo SQL_!**
 
 ## Estrategia Inicial de Exploración
 
@@ -176,15 +176,15 @@ ALTER TABLE nombres ADD COLUMN nombre_normalizado VARCHAR(48);
 
 UPDATE nombres
 SET    nombre_normalizado = (
-            SELECT  ARRAY_TO_STRING(ARRAY_AGG(palabra), ' ')
-            FROM    (
-                        SELECT REGEXP_SPLIT_TO_TABLE(
-                            nombre,
-                            '[^[:alnum:]]'
-                        ) AS palabra
-                    )
-            WHERE   palabra != ''
-       );
+    SELECT  ARRAY_TO_STRING(ARRAY_AGG(palabra), ' ')
+    FROM    (
+        SELECT REGEXP_SPLIT_TO_TABLE(
+                   nombre,
+                   '[^[:alnum:]]'
+               ) AS palabra
+    )
+    WHERE   palabra != ''
+);
 ```
 
 Con los nombres normalizados nuestra tabla `nombres` ahora luce como:
@@ -208,8 +208,9 @@ Aquí ya notamos que la remoción de los caracteres especiales reduce el número
 distintos nombres:
 
 ```sql
-SELECT COUNT(DISTINCT nombre), COUNT(DISTINCT nombre_normalizado)
-FROM nombres;
+SELECT COUNT(DISTINCT nombre),
+       COUNT(DISTINCT nombre_normalizado)
+FROM   nombres;
 
  count |  count
 -------+-------
@@ -241,12 +242,12 @@ Los primeros nombres normalizados lucen como:
 |  Área  | Nombre Normalizado  |
 |--------|---------------------|
 | 010101 | 12 DE ABRIL ESC     |
-| 010101 | 13 DE ABRIL ESC     |
-| 010101 | 2CARLOS CRESPI ESC  |
-| 010101 | 3 DE NAVIEMBRE ESC  |
-| 010101 | 3 DE NOVIEMBRE      |
-| 010101 | 3 DE NO VIEMBRE ESC |
-| 010101 | 3 DE NOVIEMBRE ESC  |
+|        | 13 DE ABRIL ESC     |
+|        | 2CARLOS CRESPI ESC  |
+|        | 3 DE NAVIEMBRE ESC  |
+|        | 3 DE NOVIEMBRE      |
+|        | 3 DE NO VIEMBRE ESC |
+|        | 3 DE NOVIEMBRE ESC  |
 
 Para efectos de clusterización, estos nombres nombres normalizados necesitan ser
 vistos como _conjuntos_ sin duplicados y sin preservar el ordenamiento original
@@ -255,14 +256,19 @@ normalizado lo denominaremos `perfil`:
 
 
 ```sql
-ALTER TABLE nombres_normalizados ADD COLUMN perfil VARCHAR[];
+ALTER TABLE nombres_normalizados
+ADD COLUMN perfil VARCHAR[];
 
 UPDATE nombres_normalizados
 SET perfil = (
-    SELECT ARRAY_AGG(palabra ORDER BY palabra)
+    SELECT ARRAY_AGG(
+        palabra ORDER BY palabra
+    )
     FROM (
         SELECT DISTINCT palabra
-        FROM REGEXP_SPLIT_TO_TABLE(nombre_normalizado, ' ') AS palabra
+        FROM REGEXP_SPLIT_TO_TABLE(
+            nombre_normalizado, ' '
+        ) AS palabra
     )
 );
 ```
@@ -286,7 +292,8 @@ mismo perfil (como `{12,ABRIL,DE,ESC` y `{3,DE,ESC,NOVIEMBRE}` arriba). Esto
 reduce aun más el número de distintos nombres que deben ser clusterizados:
 
 ```sql
-SELECT COUNT(DISTINCT perfil), COUNT(DISTINCT nombre_normalizado)
+SELECT COUNT(DISTINCT perfil),
+       COUNT(DISTINCT nombre_normalizado)
 FROM   nombres_normalizados;
 
 count  | count
