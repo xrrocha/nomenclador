@@ -24,11 +24,11 @@ Cada registro del corpus contiene tres campos:
 |010101|3 DE NOVIEMBRE /ESC  |1 |
 |010101|3 DE NOVIEMBRE ESC   |20|
 
-Como se nota, la mayoría de estos nombres contienen errores de transcripción y
-ortografía, así como variantes en el orden y ocurrencia de palabras o en el uso
+Como se aprecia, la mayoría de estos nombres contienen errores de transcripción y
+ortografía, así como discrepancias en el orden y ocurrencia de palabras o en el uso
 de abreviaturas.
 
-La siguiente tabla ilustra algunas variantes de dos de los nombres más
+La siguiente tabla presenta algunas variantes de dos de los nombres más
 frecuentes en el corpus:
 
 |       _Fe y Alegría_    |        _Manuel Abad_     |
@@ -48,9 +48,9 @@ frecuentes en el corpus:
 
 Nuestra tarea es:
 
-- Agrupar (_clusterizar_) los nombres por su similitud léxica dentro de cada
-  área geográfica
-- Seleccionar, para cada grupo, el nombre más representativo (_medoide_)
+- Agrupar (_clusterizar_) los nombres por similitud léxica dentro de cada área
+  geográfica
+- Identificar, para cada clúster, el nombre más representativo (_medoide_)
 - Localizar cada medoide en un archivo oficial de instituciones educativas
 - Identificar nombres equivalentes en áreas geográficas _contiguas_ y
   atribuirlos al área apropiada
@@ -82,12 +82,12 @@ El orden de las palabras no necesariamente corresponde de nombre en nombre
 por lo que una agrupación simple no sería apropiada.
 
 Podría pensarse en separar las palabras, reemplazarlas por su representación
-_fonética_ (p. ejm., mediante la función SQL `SOUNDEX`) y luego
-"reensamblarlas" para agruparlas mediante `GROUP BY`.
+_fonética_ (p. ejm., mediante la función `SOUNDEX`) y luego "reensamblarlas" para
+agruparlas mediante `GROUP BY`.
 
 Pero esto también falla cuando aparecen palabras diferentes, letras transpuestas,
-palabras partidas o palabras juntadas (para no mencionar que los caracteres no
-alfabéticos carecen de representación fonética).
+palabras partidas o juntadas (para no mencionar que los caracteres no alfabéticos
+carecen de representación fonética).
 
 ```
 ESC #3 DE NAVIEMBRE
@@ -126,18 +126,16 @@ Nuestros objetivos son:
 
 ## Estrategia Inicial de Exploración
 
-El primer paso en la exploración de una solución apropiada involucra:
+El primer paso en nuestra exploración involucra:
 
 - Normalizar los nombres (removiendo caracteres no alfanuméricos)
 - Clusterizar los nombres resultantes empleando:
-  - La métrica de similitud `jaccard` (también conocida como `tanimoto`)
+  - La métrica de distancia de edición `levenshtein` en combinación con una
+    métrica de co-ocurrencia de palabras en múltiples nombres
+  - La métrica de similitud documental `jaccard` (también conocida como `tanimoto`)
   - Una variante del algoritmo de clusterización `dbscan`
 - Identificar y corregir errores de transcripción y ortografía, reforzando así la
   normalización de los nombres
-
-Al analizar los resultados se irá refinando el proceso empleando una métrica
-combinada de distancia de edición (como `levenshtein`) combinada con una métrica
-de co-ocurrencia de palabras.
 
 ## Carga de datos en Postgres
 
