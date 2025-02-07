@@ -5,28 +5,6 @@
 Tenemos un corpus de 439.761 nombres de escuelas localizadas en 1.166
 áreas geográficas.
 
-La mayoría de estos nombres contienen errores de transcripción y ortografía,
-así como variantes en el orden y ocurrencia de palabras o en el uso de
-abreviaturas.
-
-La siguiente tabla ilustra algunas variantes de dos de los nombres más
-frecuentes en el corpus:
-
-|       _Fe y Alegría_    |        _Manuel Abad_     |
-|-------------------------|--------------------------|
-|FE ALEGRIA # 1 ESC       |COL. MANUEL ABAD #37      |
-|FE ALEGRIA #1 ESC        |COLEGIO MANUEL ABAD       |
-|FE ALEGRIA COL.          |ESC. MANUEL ABAD          |
-|FE ALEGRIA ESC           |ESC. MANUELA ABAD         |
-|FE ALEGRIA ESC.          |ESCUELA MANUEL ABAD       |
-|FE ALEGRIA(ESC)          |JARDIN MANUEL ABAD        |
-|FE I¿Y ALEGRIA # 10 ESC-.|MANUELA ABAD JARD.        |
-|FE NY ALEGRIA-ESC        |MANUEL ABAD               |
-|FE T ALEGRIA. ESC.       |MANUEL ABAD COL. 37       |
-|FE Y AALEGRIA ESC        |MANUEL ABAD ESC           |
-|FE Y ALEGRIA             |MANUEL ABADF ESC.         |
-|FE Y ALEGRIA # .2.       |MANUEL ABAD GOMEZ ESC     |
-
 Cada registro del corpus contiene tres campos:
 
 - El código de área geográfica
@@ -45,6 +23,28 @@ Cada registro del corpus contiene tres campos:
 |010101|3 DE NOVIEMBRE (ESC) |9 |
 |010101|3 DE NOVIEMBRE /ESC  |1 |
 |010101|3 DE NOVIEMBRE ESC   |20|
+
+Como se nota, la mayoría de estos nombres contienen errores de transcripción y
+ortografía, así como variantes en el orden y ocurrencia de palabras o en el uso
+de abreviaturas.
+
+La siguiente tabla ilustra algunas variantes de dos de los nombres más
+frecuentes en el corpus:
+
+|       _Fe y Alegría_    |        _Manuel Abad_     |
+|-------------------------|--------------------------|
+|FE ALEGRIA # 1 ESC       |COL. MANUEL ABAD #37      |
+|FE ALEGRIA #1 ESC        |COLEGIO MANUEL ABAD       |
+|FE ALEGRIA COL.          |ESC. MANUEL ABAD          |
+|FE ALEGRIA ESC           |ESC. MANUELA ABAD         |
+|FE ALEGRIA ESC.          |ESCUELA MANUEL ABAD       |
+|FE ALEGRIA(ESC)          |JARDIN MANUEL ABAD        |
+|FE I¿Y ALEGRIA # 10 ESC-.|MANUELA ABAD JARD.        |
+|FE NY ALEGRIA-ESC        |MANUEL ABAD               |
+|FE T ALEGRIA. ESC.       |MANUEL ABAD COL. 37       |
+|FE Y AALEGRIA ESC        |MANUEL ABAD ESC           |
+|FE Y ALEGRIA             |MANUEL ABADF ESC.         |
+|FE Y ALEGRIA # .2.       |MANUEL ABAD GOMEZ ESC     |
 
 Nuestra tarea es:
 
