@@ -3,11 +3,10 @@
 \set ECHO ALL
 
 DROP TABLE IF EXISTS nombres;
-
 CREATE TABLE nombres (
     area        VARCHAR(6)  NOT NULL,
     nombre      VARCHAR(48) NOT NULL,
-    occurencias INTEGER NOT NULL
+    ocurrencias INTEGER NOT NULL
 );
 
 \COPY nombres FROM data/corpus.tsv DELIMITER E'\t';
@@ -18,16 +17,21 @@ ALTER TABLE nombres ADD COLUMN nombre_normalizado VARCHAR(48);
 UPDATE nombres
 SET    nombre_normalizado = (
             SELECT  ARRAY_TO_STRING(ARRAY_AGG(palabra), ' ')
-            FROM    (
-                        SELECT REGEXP_SPLIT_TO_TABLE(
-                            nombre,
-                            '[^[:alnum:]]'
-                        ) AS palabra
-                    )
+            FROM    REGEXP_SPLIT_TO_TABLE(nombre, '[^[:alnum:]]') AS palabra
             WHERE   palabra != ''
        );
 
--- Generar perfil de nombres normalizados
+-- Generar perfiles de nombres normalizados
+DROP TABLE IF EXISTS nombres_normalizados;
+CREATE TABLE nombres_normalizados AS
+SELECT    area,
+          nombre_normalizado,
+          COUNT(*)            AS cuenta_nombres,
+          SUM(ocurrencias)    AS ocurrencias
+FROM      nombres
+GROUP BY area, nombre_normalizado
+ORDER BY 1, 2;
+
 ALTER TABLE nombres_normalizados ADD COLUMN perfil VARCHAR[];
 
 UPDATE nombres_normalizados

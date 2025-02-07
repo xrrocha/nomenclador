@@ -177,7 +177,9 @@ ADD COLUMN nombre_normalizado VARCHAR(48);
 
 UPDATE nombres
 SET    nombre_normalizado = (
-    SELECT  ARRAY_TO_STRING(ARRAY_AGG(palabra), ' ')
+    SELECT  ARRAY_TO_STRING(
+                ARRAY_AGG(palabra), ' '
+            )
     FROM    (
         SELECT REGEXP_SPLIT_TO_TABLE(
                    nombre, '[^[:alnum:]]'
