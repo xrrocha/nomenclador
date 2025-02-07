@@ -215,12 +215,11 @@ Aquí ya notamos que la remoción de los caracteres especiales reduce el número
 distintos nombres:
 
 ```sql
-SELECT COUNT(DISTINCT nombre)             AS nombres,
-       COUNT(DISTINCT nombre_normalizado) AS nombres_normalizados
+SELECT COUNT(DISTINCT nombre), COUNT(DISTINCT nombre_normalizado)
 FROM NOMBRES;
- nombres | nombres_normalizados
- --------+---------------------
-  301681 | 228977
+ count |  count
+-------+-------
+301681 | 228977
 ```
 
 El número de distintos nombres se ha reducido en más de 72.000 luego de la
@@ -299,7 +298,7 @@ reduce aun más el número de distintos nombres que deben ser clusterizados:
 
 ```sql
 SELECT COUNT(DISTINCT perfil), COUNT(DISTINCT nombre_normalizado)
-FROM   ombres_normalizados ;
+FROM   nombres_normalizados ;
 
 count  | count
 -------+--------
@@ -308,3 +307,40 @@ count  | count
 
 Esto reduce en más de 14.000 el numero global de distintos nombres que se
 deben clusterizar! 👍
+
+Como último paso de normalización previo a la clusterización crearemos una tabla
+de perfiles:
+
+```sql
+DROP TABLE IF EXISTS perfiles;
+
+CREATE TABLE perfiles AS
+SELECT   area,
+         perfil,
+         COUNT(*)            AS cuenta_normalizados,
+         SUM(cuenta_nombres) AS cuenta_nombres,
+         SUM(ocurrencias)    AS ocurrencias
+FROM     nombres_normalizados
+GROUP BY area,
+         perfil
+ORDER BY 1, 2;
+```
+
+Los primeros registros de nuestra tabla de `perfiles` lucen como:
+
+```
+  area  |              perfil               | normalizados | nombres | ocurrencias
+--------+-----------------------------------+--------------+---------+-------------
+ 090112 | {471,ESC,N,S}                     |            9 |      24 |          60
+ 092056 | {1,ESC,NN,NOCTURNA,S}             |            6 |       7 |          12
+ 092056 | {ESC,N,NOCTURNA,S}                |            5 |       8 |          14
+ 090114 | {COL,GUAYAQUIL,NACIONAL}          |            5 |       9 |          14
+ 090112 | {12,215,DE,ESC,FEBRERO}           |            5 |      17 |         100
+ 090112 | {194,CESAR,ESC,SALGADO,ZAMORA}    |            5 |      11 |          65
+ 090104 | {AIDA,DE,ESC,LARA,LEON,RODRIGUEZ} |            5 |       8 |          34
+ 090112 | {BUCARAM,COL,DE,MARTHA,ROLDOS}    |            5 |       8 |         159
+ 090112 | {471,ESC,NOMBRE,SIN}              |            5 |      12 |          32
+ 090112 | {426,ESC,JOSE,MERCHAN,MONTENEGRO} |            5 |      13 |          24
+```
+
+Con estos perfiles ya podemos proceder a una forma simple de clusterización.
