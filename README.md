@@ -79,15 +79,15 @@ ESC 3 DE NOVIEMBRE #42
 ```
 
 El orden de las palabras no necesariamente corresponde de nombre en nombre
-por una agrupación simple no sería apropiada.
+por lo que una agrupación simple no sería apropiada.
 
 Podría pensarse en separar las palabras, reemplazarlas por su representación
 _fonética_ (p. ejm., mediante la función SQL `SOUNDEX`) y luego
 "reensamblarlas" para agruparlas mediante `GROUP BY`.
 
-Pero esto también falla cuando aparecen términos diferentes, vocales erradas,
+Pero esto también falla cuando aparecen palabras diferentes, letras transpuestas,
 palabras partidas o palabras juntadas (para no mencionar que los caracteres no
-alafabéticos carecen de representación fonética).
+alfabéticos carecen de representación fonética).
 
 ```
 ESC #3 DE NAVIEMBRE
@@ -95,9 +95,9 @@ ESC #3 DE NAVIEMBRE
 3 DENOVIEMBRE
 ``` 
 
-Claramente, se necesita algo más que SQL básico. Se necesita _clusterizar_,
-una operación para la que las diferentes los distintos motores de bases de datos
-no suelen ofrecer una solución expedita.
+Claramente, se necesita algo más que SQL básico. Se necesita _clusterizar_, una
+operación para la que los distintos motores de bases de datos no suelen ofrecer
+una solución expedita.
 
 Por supuesto, hay herramientas de aprendizaje maquinal que se podrían utilizar para
 este propósito. No obstante, el uso de tales herramientas _no_ es trivial y trae
@@ -113,29 +113,31 @@ identificar métricas de similitud documental resistentes a los errores de
 transcripción de nuestro corpus (p. ejm. `tf-idf`) en combinación con métricas
 apropiadas de similitud de cadenas de caracteres (p. ejm.  `damerau-levenshtein`).
 
-Dadas estas consideraciones nos proponemos explorar las opciones disponibles
-como un ejercicio de excursión intelectual. Nuestros objetivos son:
+Dadas estas consideraciones nos proponemos explorar las opciones disponibles como
+un ejercicio de excursión intelectual.
+
+Nuestros objetivos son:
 
 - Estudiar y _entender_ el proceso de clusterización evitando la ilusión de querer
   delegarlo de forma simple en alguna herramienta "establecida"
-- **Sacar partido de capacidades avanzadas de SQL (como aquellas presentes en
-  Postgres) de forma que el proceso completo se pueda implementar de forma
-  simple... _empleando tan solo SQL_!**
+- **Sacar partido de capacidades avanzadas de bases de datos relacionales como
+  Postgres) de forma que el proceso completo se pueda implementar de forma simple
+  e inteligible _empleando tan solo SQL_!**
 
 ## Estrategia Inicial de Exploración
 
 El primer paso en la exploración de una solución apropiada involucra:
 
-- Normalizar los nombres removiendo caracteres no alfanuméricos
+- Normalizar los nombres (removiendo caracteres no alfanuméricos)
 - Clusterizar los nombres resultantes empleando:
   - La métrica de similitud `jaccard` (también conocida como `tanimoto`)
   - Una variante del algoritmo de clusterización `dbscan`
-- Identificar y corregir errores de transcripción y ortografía, reforzando
-  la normalización de los nombres
+- Identificar y corregir errores de transcripción y ortografía, reforzando así la
+  normalización de los nombres
 
 Al analizar los resultados se irá refinando el proceso empleando una métrica
-combinada de distancia de edición (como `levenshtein`) combinada con una
-métrica de co-ocurrencia de palabras.
+combinada de distancia de edición (como `levenshtein`) combinada con una métrica
+de co-ocurrencia de palabras.
 
 ## Carga de datos en Postgres
 
