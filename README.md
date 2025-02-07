@@ -99,7 +99,7 @@ Claramente, se necesita algo más que SQL básico. Se necesita _clusterizar_, un
 operación para la que los distintos motores de bases de datos no suelen ofrecer
 una solución expedita.
 
-Por supuesto, hay herramientas de aprendizaje maquinal que se podrían utilizar para
+Por supuesto, hay herramientas de aprendizaje maquinal que podrían utilizarse para
 este propósito. No obstante, el uso de tales herramientas _no_ es trivial y trae
 consigo su propia carga de complejidad impuesta por los algoritmos aplicables y
 por las herramientas en sí mismas.
@@ -109,20 +109,20 @@ de clusterización `k-means`. Pero esto tampoco funcionaría porque no es
 factible anticipar en cuántos clústers querríamos dividir cada grupo de
 nombres por área geográfica. Se requieren algoritmos de clusterización capaces
 de descubrir grupos naturales dentro del corpus (p. ejm. `dbscan`), así como
-identificar métricas de similitud documental resistentes a los errores de
+utilizar métricas de similitud documental resistentes a los errores de
 transcripción de nuestro corpus (p. ejm. `tf-idf`) en combinación con métricas
 apropiadas de similitud de cadenas de caracteres (p. ejm.  `damerau-levenshtein`).
 
-Dadas estas consideraciones nos proponemos explorar las opciones disponibles como
-un ejercicio de excursión intelectual.
+Dadas estas consideraciones exploraremos las opciones disponibles como un ejercicio
+de excursión intelectual.
 
 Nuestros objetivos son:
 
-- Estudiar y _entender_ el proceso de clusterización evitando la ilusión de querer
-  delegarlo de forma simple en alguna herramienta "establecida"
-- **Sacar partido de capacidades avanzadas de bases de datos relacionales como
-  Postgres) de forma que el proceso completo se pueda implementar de forma simple
-  e inteligible _empleando tan solo SQL_!**
+- Estudiar y _entender_ el proceso de clusterización (evitando la ilusión de querer
+  delegarlo de forma simple en alguna herramienta "establecida")
+- **Sacar partido de capacidades avanzadas de bases de datos como Postgres de forma
+  que el proceso completo se pueda implementar de forma simple e inteligible...
+  _empleando tan solo SQL_!**
 
 ## Estrategia Inicial de Exploración
 
