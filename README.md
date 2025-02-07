@@ -96,32 +96,31 @@ ESC #3 DE NAVIEMBRE
 ``` 
 
 Claramente, se necesita algo más que SQL básico. Se necesita _clusterizar_,
-una operación para la que las diferentes variantes de SQL no suelen ofrecer
-una solución expedita.
+una operación para la que las diferentes los distintos motores de bases de datos
+no suelen ofrecer una solución expedita.
 
-Por supuesto, hay herramientas de aprendizaje maquinal (_machine learning_)
-que se podrían utilizar para este propósito. No obstante, el uso de tales
-herramientas _no_ es trivial y trae consigo su propia carga de complejidad
-impuesta por los algoritmos seleccionados y por las herramientas mismas.
+Por supuesto, hay herramientas de aprendizaje maquinal que se podrían utilizar para
+este propósito. No obstante, el uso de tales herramientas _no_ es trivial y trae
+consigo su propia carga de complejidad impuesta por los algoritmos aplicables y
+por las herramientas en sí mismas.
 
 Un científico de datos apresurado podría querer emplear el popular algoritmo
 de clusterización `k-means`. Pero esto tampoco funcionaría porque no es
 factible anticipar en cuántos clústers querríamos dividir cada grupo de
-nombres por área geográfica. Para emplear algoritmos de clustering capaces
-de descubrir grupos naturales dentro del corpus (p. ejm. `dbscan`) tenemos
-que identificar métricas de similitud documental resistentes a los errores
-de transcripción de nuestro corpus (p. ejm. `tf-idf`) en combinación con
-métricas apropiadas de similitud de cadenas de caracteres (p. ejm.
-`damerau-levenshtein`).
+nombres por área geográfica. Se requieren algoritmos de clusterización capaces
+de descubrir grupos naturales dentro del corpus (p. ejm. `dbscan`), así como
+identificar métricas de similitud documental resistentes a los errores de
+transcripción de nuestro corpus (p. ejm. `tf-idf`) en combinación con métricas
+apropiadas de similitud de cadenas de caracteres (p. ejm.  `damerau-levenshtein`).
 
-Dadas estas consideraciones nos proponemos los siguientes objetivos dentro
-de nuestra excursión intelectual:
+Dadas estas consideraciones nos proponemos explorar las opciones disponibles
+como un ejercicio de excursión intelectual. Nuestros objetivos son:
 
-- Estudiar y _entender_ el proceso de clusterización renunciando a la idea
-  de que es posible delegarlo de forma "simple" en herramientas establecidas
+- Estudiar y _entender_ el proceso de clusterización evitando la ilusión de querer
+  delegarlo de forma simple en alguna herramienta "establecida"
 - **Sacar partido de capacidades avanzadas de SQL (como aquellas presentes en
-  Postgres) de forma que el proceso completo se pueda implementar de manera
-  simple e inteligible... _empleando únicamente SQL_!**
+  Postgres) de forma que el proceso completo se pueda implementar de forma
+  simple... _empleando únicamente SQL_!**
 
 ## Estrategia Inicial de Exploración
 
@@ -129,15 +128,14 @@ El primer paso en la exploración de una solución apropiada involucra:
 
 - Normalizar los nombres removiendo caracteres no alfanuméricos
 - Clusterizar los nombres resultantes empleando:
-  - La métrica de similitud documental `jaccard` (también conocida como
-    `tanimoto`)
-  - El algoritmo de clusterización `dbscan`
+  - La métrica de similitud `jaccard` (también conocida como `tanimoto`)
+  - Una variante del algoritmo de clusterización `dbscan`
 - Identificar y corregir errores de transcripción y ortografía, reforzando
   la normalización de los nombres
 
-Al analizar los resultados se irá refinando el proceso, empleando, por
-ejemplo una métrica combinada de distancia de edición (p. ejm. `levenshtein`)
-y de co-ocurrencia de términos.
+Al analizar los resultados se irá refinando el proceso empleando una métrica
+combinada de distancia de edición (como `levenshtein`) combinada con una
+métrica de co-ocurrencia de palabras.
 
 ## Carga de datos en Postgres
 
@@ -155,20 +153,18 @@ CREATE TABLE nombres (
 
 Los primeros registros de esta tabla lucen como:
 
-```sql
-  area  |                  nombre                  | ocurrencias
---------+------------------------------------------+-------------
- 010101 | 12 DE ABRIL ESC                          |           3
- 010101 | 12 DE ABRIL ESC.                         |           2
- 010101 | 13 DE ABRIL ESC                          |           1
- 010101 | 2CARLOS CRESPI ESC                       |           1
- 010101 | 3 DE NAVIEMBRE ESC                       |           1
- 010101 | 3 DE NO VIEMBRE ESC                      |           1
- 010101 | 3 DE NOVIEMBRE                           |           1
- 010101 | 3 DE NOVIEMBRE (ESC)                     |           9
- 010101 | 3 DE NOVIEMBRE /ESC                      |           1
- 010101 | 3 DE NOVIEMBRE ESC                       |          20
-```
+|  Area  |       Nombre         | Ocurrencias|
+|--------|----------------------|-----------:|
+| 010101 | 12 DE ABRIL ESC      |           3|
+| 010101 | 12 DE ABRIL ESC.     |           2|
+| 010101 | 13 DE ABRIL ESC      |           1|
+| 010101 | 2CARLOS CRESPI ESC   |           1|
+| 010101 | 3 DE NAVIEMBRE ESC   |           1|
+| 010101 | 3 DE NO VIEMBRE ESC  |           1|
+| 010101 | 3 DE NOVIEMBRE       |           1|
+| 010101 | 3 DE NOVIEMBRE (ESC) |           9|
+| 010101 | 3 DE NOVIEMBRE /ESC  |           1|
+| 010101 | 3 DE NOVIEMBRE ESC   |          20|
 
 ## Normalización de Nombres
 
@@ -176,7 +172,6 @@ Nuestra estrategia inicial de normalización de los nombres es simple:
 remover todo carácter no alfabético o numérico de cada palabra del nombre:
 
 ```sql
--- Generar nombres normalizados
 ALTER TABLE nombres ADD COLUMN nombre_normalizado VARCHAR(48);
 
 UPDATE nombres
@@ -194,29 +189,28 @@ SET    nombre_normalizado = (
 
 Con los nombres normalizados nuestra tabla `nombres` ahora luce como:
 
-```sql
-  area  |            nombre             | ocurrencias |      nombre_normalizado
---------+-------------------------------+-------------+------------------------------
- 010101 | ALBORADA JARDIN               |           1 | ALBORADA JARDIN
- 010101 | ALFONSO CORDERO (ESC)         |           2 | ALFONSO CORDERO ESC
- 010101 | ALFONSO CORDERO ESC           |          15 | ALFONSO CORDERO ESC
- 010101 | ALFONSO CORDERO ESC.          |           7 | ALFONSO CORDERO ESC
- 010101 | ALFONSO CORDERO PALACIOS ESC  |           3 | ALFONSO CORDERO PALACIOS ESC
- 010101 | ALFONSO CORDERO PALACIOS ESC. |           3 | ALFONSO CORDERO PALACIOS ESC
- 010101 | ALKFONSO CORDERO ESC          |           1 | ALKFONSO CORDERO ESC
- 010101 | ALKFONSO CORDERO ESEC         |           1 | ALKFONSO CORDERO ESEC
- 010101 | AMERICANO BILINGUE JARD.      |           1 | AMERICANO BILINGUE JARD
- 010101 | AMERICANO COL                 |           3 | AMERICANO COL
- 010101 | AMERICANO COL.                |           3 | AMERICANO COL
- 010101 | AMERICANO ESC                 |           8 | AMERICANO ESC
-```
+|  Área  |            Nombre             |     Nombre Normalizado      |
+|--------|-------------------------------|-----------------------------|
+| 010101 | ALBORADA JARDIN               | ALBORADA JARDIN             |
+| 010101 | ALFONSO CORDERO (ESC)         | ALFONSO CORDERO ESC         |
+| 010101 | ALFONSO CORDERO ESC           | ALFONSO CORDERO ESC         |
+| 010101 | ALFONSO CORDERO ESC.          | ALFONSO CORDERO ESC         |
+| 010101 | ALFONSO CORDERO PALACIOS ESC  | ALFONSO CORDERO PALACIOS ESC|
+| 010101 | ALFONSO CORDERO PALACIOS ESC. | ALFONSO CORDERO PALACIOS ESC|
+| 010101 | ALKFONSO CORDERO ESC          | ALKFONSO CORDERO ESC        |
+| 010101 | ALKFONSO CORDERO ESEC         | ALKFONSO CORDERO ESEC       |
+| 010101 | AMERICANO BILINGUE JARD.      | AMERICANO BILINGUE JARD     |
+| 010101 | AMERICANO COL                 | AMERICANO COL               |
+| 010101 | AMERICANO COL.                | AMERICANO COL               |
+| 010101 | AMERICANO ESC                 | AMERICANO ESC               |
 
 Aquí ya notamos que la remoción de los caracteres especiales reduce el número de
 distintos nombres:
 
 ```sql
 SELECT COUNT(DISTINCT nombre), COUNT(DISTINCT nombre_normalizado)
-FROM NOMBRES;
+FROM nombres;
+
  count |  count
 -------+-------
 301681 | 228977
@@ -244,17 +238,15 @@ ORDER BY 1, 2;
 
 Los primeros nombres normalizados lucen como:
 
-```
-  area  |            nombre_normalizado            | cuenta_nombres | ocurrencias
---------+------------------------------------------+----------------+-------------
- 010101 | 12 DE ABRIL ESC                          |              2 |           5
- 010101 | 13 DE ABRIL ESC                          |              1 |           1
- 010101 | 2CARLOS CRESPI ESC                       |              1 |           1
- 010101 | 3 DE NAVIEMBRE ESC                       |              1 |           1
- 010101 | 3 DE NOVIEMBRE                           |              1 |           1
- 010101 | 3 DE NO VIEMBRE ESC                      |              1 |           1
- 010101 | 3 DE NOVIEMBRE ESC                       |              5 |          40
-```
+|  Área  | Nombre Normalizado  |
+|--------|---------------------|
+| 010101 | 12 DE ABRIL ESC     |
+| 010101 | 13 DE ABRIL ESC     |
+| 010101 | 2CARLOS CRESPI ESC  |
+| 010101 | 3 DE NAVIEMBRE ESC  |
+| 010101 | 3 DE NOVIEMBRE      |
+| 010101 | 3 DE NO VIEMBRE ESC |
+| 010101 | 3 DE NOVIEMBRE ESC  |
 
 Para efectos de clusterización, estos nombres nombres normalizados necesitan ser
 vistos como _conjuntos_ sin duplicados y sin preservar el ordenamiento original
@@ -267,7 +259,7 @@ ALTER TABLE nombres_normalizados ADD COLUMN perfil VARCHAR[];
 
 UPDATE nombres_normalizados
 SET perfil = (
-    Select ARRAY_AGG(palabra ORDER BY PALABRA)
+    SELECT ARRAY_AGG(palabra ORDER BY palabra)
     FROM (
         SELECT DISTINCT palabra
         FROM REGEXP_SPLIT_TO_TABLE(nombre_normalizado, ' ') AS palabra
@@ -277,20 +269,17 @@ SET perfil = (
 
 Los primeros perfiles lucen como:
 
-```
-  area  |        perfil         | nombre_normalizado
---------+-----------------------+---------------------
- 010101 | {12,ABRIL,DE,ESC}     | 12 DE ABRIL ESC
- 010101 |                       | ESC 12 DE ABRIL
- 010101 | {13,ABRIL,DE,ESC}     | 13 DE ABRIL ESC
- 010101 | {2CARLOS,CRESPI,ESC}  | 2CARLOS CRESPI ESC
- 010101 | {3,DE,ESC,NAVIEMBRE}  | 3 DE NAVIEMBRE ESC
- 010101 | {3,DE,ESC,NO,VIEMBRE} | 3 DE NO VIEMBRE ESC
- 010101 | {3,DE,ESC,NOVIEMBRE}  | 3 DE NOVIEMBRE ESC
- 010101 |                       | ESC 3 DE NOVIEMBRE
- 010101 | {3,DE,NOVIEMBRE}      | 3 DE NOVIEMBRE
- 010101 | {3,ESC,NOV}           | 3 NOV ESC
-```
+|  Área  |        Perfil         | Nombre Normalizado |
+|--------|-----------------------|--------------------|
+| 010101 | {12,ABRIL,DE,ESC}     | 12 DE ABRIL ESC    |
+|        |                       | ESC 12 DE ABRIL    |
+|        | {13,ABRIL,DE,ESC}     | 13 DE ABRIL ESC    |
+|        | {2CARLOS,CRESPI,ESC}  | 2CARLOS CRESPI ESC |
+|        | {3,DE,ESC,NAVIEMBRE}  | 3 DE NAVIEMBRE ESC |
+|        | {3,DE,ESC,NO,VIEMBRE} | 3 DE NO VIEMBRE ESC|
+|        | {3,DE,ESC,NOVIEMBRE}  | 3 DE NOVIEMBRE ESC |
+|        |                       | ESC 3 DE NOVIEMBRE |
+|        | {3,DE,NOVIEMBRE}      | 3 DE NOVIEMBRE     |
 
 Es de notar que múltiples nombres normalizados distintos pueden dar origen a un
 mismo perfil (como `{12,ABRIL,DE,ESC` y `{3,DE,ESC,NOVIEMBRE}` arriba). Esto
@@ -298,7 +287,7 @@ reduce aun más el número de distintos nombres que deben ser clusterizados:
 
 ```sql
 SELECT COUNT(DISTINCT perfil), COUNT(DISTINCT nombre_normalizado)
-FROM   nombres_normalizados ;
+FROM   nombres_normalizados;
 
 count  | count
 -------+--------
@@ -328,19 +317,17 @@ ORDER BY 1, 2;
 
 Los primeros registros de nuestra tabla de `perfiles` lucen como:
 
-```
-  area  |              perfil               | normalizados | nombres | ocurrencias
---------+-----------------------------------+--------------+---------+-------------
- 090112 | {471,ESC,N,S}                     |            9 |      24 |          60
- 092056 | {1,ESC,NN,NOCTURNA,S}             |            6 |       7 |          12
- 092056 | {ESC,N,NOCTURNA,S}                |            5 |       8 |          14
- 090114 | {COL,GUAYAQUIL,NACIONAL}          |            5 |       9 |          14
- 090112 | {12,215,DE,ESC,FEBRERO}           |            5 |      17 |         100
- 090112 | {194,CESAR,ESC,SALGADO,ZAMORA}    |            5 |      11 |          65
- 090104 | {AIDA,DE,ESC,LARA,LEON,RODRIGUEZ} |            5 |       8 |          34
- 090112 | {BUCARAM,COL,DE,MARTHA,ROLDOS}    |            5 |       8 |         159
- 090112 | {471,ESC,NOMBRE,SIN}              |            5 |      12 |          32
- 090112 | {426,ESC,JOSE,MERCHAN,MONTENEGRO} |            5 |      13 |          24
-```
+|  Área  |              Perfil               | Normalizados | Nombres | Ocurrencias|
+|--------|-----------------------------------|--------------|---------|------------|
+| 090112 | {471,ESC,N,S}                     |            9 |      24 |          60|
+| 092056 | {1,ESC,NN,NOCTURNA,S}             |            6 |       7 |          12|
+| 092056 | {ESC,N,NOCTURNA,S}                |            5 |       8 |          14|
+| 090114 | {COL,GUAYAQUIL,NACIONAL}          |            5 |       9 |          14|
+| 090112 | {12,215,DE,ESC,FEBRERO}           |            5 |      17 |         100|
+| 090112 | {194,CESAR,ESC,SALGADO,ZAMORA}    |            5 |      11 |          65|
+| 090104 | {AIDA,DE,ESC,LARA,LEON,RODRIGUEZ} |            5 |       8 |          34|
+| 090112 | {BUCARAM,COL,DE,MARTHA,ROLDOS}    |            5 |       8 |         159|
+| 090112 | {471,ESC,NOMBRE,SIN}              |            5 |      12 |          32|
+| 090112 | {426,ESC,JOSE,MERCHAN,MONTENEGRO} |            5 |      13 |          24|
 
 Con estos perfiles ya podemos proceder a una forma simple de clusterización.
