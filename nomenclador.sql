@@ -2,6 +2,13 @@
 \set TIMING ON
 \set ECHO ALL
 
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+CREATE OR REPLACE FUNCTION edit_distance(a TEXT, b TEXT) RETURNS REAL AS
+$$
+    SELECT levenshtein(a, b)::REAL / GREATEST(LENGTH(a), LENGTH(b));
+$$
+    LANGUAGE SQL;
+
 DROP TABLE IF EXISTS nombres;
 CREATE TABLE nombres (
     area        VARCHAR(6)  NOT NULL,

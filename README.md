@@ -82,12 +82,12 @@ El orden de las palabras no necesariamente corresponde de nombre en nombre
 por lo que una agrupación simple no sería apropiada.
 
 Podría pensarse en separar las palabras, reemplazarlas por su representación
-_fonética_ (p. ejm., mediante la función `SOUNDEX`) y luego "reensamblarlas" para
-agruparlas mediante `GROUP BY`.
+_fonética_ (p. ejm., mediante la función `SOUNDEX`) y luego "reensamblarlas"
+para agruparlas mediante `GROUP BY`.
 
-Pero esto también falla cuando aparecen palabras diferentes, letras transpuestas,
-palabras partidas o juntadas (para no mencionar que los caracteres no alfabéticos
-carecen de representación fonética).
+Pero esto también falla cuando aparecen palabras diferentes, letras
+transpuestas, palabras partidas o juntadas (para no mencionar que los
+caracteres no alfabéticos carecen de representación fonética).
 
 ```
 ESC #3 DE NAVIEMBRE
@@ -95,14 +95,14 @@ ESC #3 DE NAVIEMBRE
 3 DENOVIEMBRE
 ``` 
 
-Claramente, se necesita algo más que SQL básico. Se necesita _clusterizar_, una
-operación para la que los distintos motores de bases de datos no suelen ofrecer
-una solución expedita.
+Claramente, se necesita algo más que SQL básico. Se necesita _clusterizar_,
+una operación para la que los distintos motores de bases de datos no suelen
+ofrecer una solución expedita.
 
-Por supuesto, hay herramientas de aprendizaje maquinal que podrían utilizarse para
-este propósito. No obstante, el uso de tales herramientas _no_ es trivial y trae
-consigo su propia carga de complejidad impuesta por los algoritmos aplicables y
-por las herramientas en sí mismas.
+Por supuesto, hay herramientas de aprendizaje maquinal que podrían utilizarse
+para este propósito. No obstante, el uso de tales herramientas _no_ es trivial
+y trae consigo su propia carga de complejidad impuesta por los algoritmos
+aplicables y por las herramientas en sí mismas.
 
 Un científico de datos apresurado podría querer emplear el popular algoritmo
 de clusterización `k-means`. Pero esto tampoco funcionaría porque no es
@@ -111,17 +111,18 @@ nombres por área geográfica. Se requieren algoritmos de clusterización capace
 de descubrir grupos naturales dentro del corpus (p. ejm. `dbscan`), así como
 utilizar métricas de similitud documental resistentes a los errores de
 transcripción de nuestro corpus (p. ejm. `tf-idf`) en combinación con métricas
-apropiadas de similitud de cadenas de caracteres (p. ejm.  `damerau-levenshtein`).
+apropiadas de similitud de cadenas de caracteres (p. ejm.
+`damerau-levenshtein`).
 
-Dadas estas consideraciones exploraremos las opciones disponibles como un ejercicio
-de excursión intelectual.
+Dadas estas consideraciones exploraremos las opciones disponibles como un
+ejercicio de excursión intelectual.
 
 Nuestros objetivos son:
 
-- Estudiar y _entender_ el proceso de clusterización (evitando la ilusión de querer
-  delegarlo de forma "simple" en alguna herramienta "establecida")
-- **Sacar partido de capacidades avanzadas de bases de datos como Postgres de forma
-  que el proceso completo se implemente de forma simple e inteligible...
+- Estudiar y _entender_ el proceso de clusterización (evitando la ilusión de
+  querer delegarlo de forma "simple" en alguna herramienta "establecida")
+- **Sacar partido de capacidades avanzadas de bases de datos como Postgres de
+  forma que el proceso completo se implemente de forma simple e inteligible...
   _empleando tan solo SQL_!**
 
 ## Estrategia Inicial de Exploración
@@ -132,10 +133,11 @@ El primer paso en nuestra exploración involucra:
 - Clusterizar los nombres resultantes empleando:
   - La métrica de distancia de edición `levenshtein` en combinación con una
     métrica de co-ocurrencia de palabras en múltiples nombres
-  - La métrica de similitud documental `jaccard` (también conocida como `tanimoto`)
+  - La métrica de similitud documental `jaccard` (también conocida como
+    `tanimoto`)
   - Una variante del algoritmo de clusterización `dbscan`
-- Identificar y corregir errores de transcripción y ortografía, reforzando así la
-  normalización de los nombres
+- Identificar y corregir errores de transcripción y ortografía, reforzando así
+  la normalización de los nombres
 
 ## Carga de datos en Postgres
 
@@ -206,8 +208,8 @@ Con los nombres normalizados nuestra tabla `nombres` ahora luce como:
 | 010101 | AMERICANO COL.                | AMERICANO COL               |
 | 010101 | AMERICANO ESC                 | AMERICANO ESC               |
 
-Aquí ya notamos que la remoción de los caracteres especiales reduce el número de
-distintos nombres:
+Aquí ya notamos que la remoción de los caracteres especiales reduce el número
+de distintos nombres:
 
 ```sql
 SELECT COUNT(DISTINCT nombre),
@@ -251,12 +253,12 @@ Los primeros nombres normalizados lucen como:
 |        | 3 DE NO VIEMBRE ESC |
 |        | 3 DE NOVIEMBRE ESC  |
 
-Para efectos de clusterización, estos nombres nombres normalizados necesitan ser
-vistos como _conjuntos_ que no contienen duplicados y cuyo proceso es insensible
-al ordenamiento original de las palabras.
+Para efectos de clusterización, estos nombres nombres normalizados necesitan
+ser vistos como _conjuntos_ que no contienen duplicados y cuyo proceso es
+insensible al ordenamiento original de las palabras.
 
-A este conjunto de distintas palabras formado a partir de cada nombre normalizado
-lo denominaremos `perfil`:
+A este conjunto de distintas palabras formado a partir de cada nombre
+normalizado lo denominaremos `perfil`:
 
 ```sql
 ALTER TABLE nombres_normalizados
@@ -307,8 +309,8 @@ count  | count
 Esto reduce en más de 14.000 el numero global de distintos nombres que se deben
 clusterizar! 👍
 
-Como último paso de normalización previo a la clusterización crearemos una tabla de
-perfiles:
+Como último paso de normalización previo a la clusterización crearemos una
+tabla de perfiles:
 
 ```sql
 DROP TABLE IF EXISTS perfiles;
