@@ -1,27 +1,33 @@
 WITH t_perfiles AS (
     SELECT   area,
-             perfil
+             (ROW_NUMBER()
+                OVER(ORDER  BY area, ocurrencias DESC, perfil))::INT
+                AS id,
+             perfil,
+             ocurrencias
     FROM     perfiles
     WHERE    area = (
         SELECT   area
         FROM     perfiles
         GROUP BY area
-        HAVING   COUNT(*) = 32
+        HAVING   COUNT(*) = 48
         LIMIT    1
     )
-    ORDER BY perfil
+    ORDER BY area, ocurrencias DESC, perfil
 ), t_pares AS (
-    SELECT perfil_1.area,
-           perfil_1.perfil AS perfil_1,
-           perfil_2.perfil AS perfil_2
-    FROM   t_perfiles perfil_1
-           JOIN t_perfiles perfil_2
-           ON perfil_1.area = perfil_2.area AND
-              perfil_1.perfil > perfil_2.perfil
+    SELECT p1.area,
+           p1.id      AS id_1,
+           p1.perfil  AS perfil_1,
+           p2.id      AS id_2,
+           p2.perfil  AS perfil_2
+    FROM   t_perfiles p1
+           JOIN t_perfiles p2
+           ON p1.area = p2.area AND
+              p1.perfil > p2.perfil
 ), t_distancias AS (
     SELECT area,
-           perfil_1,
-           perfil_2,
+           id_1,
+           id_2,
            (
                 WITH p_interseccion AS (
                     SELECT UNNEST(perfil_1) AS palabra
@@ -47,37 +53,37 @@ WITH t_perfiles AS (
                 SELECT 1.0 - (d_interseccion.suma / d_union.suma)
                 FROM   d_interseccion, d_union
            ) AS distancia
-    from   t_pares ps
+    FROM   t_pares ps
 ), t_vectores AS (
-    SELECT area, perfil_1, perfil_2, distancia FROM t_distancias
+    SELECT area, id_1, id_2, distancia FROM t_distancias
     UNION
-    SELECT area, perfil_2, perfil_1, distancia FROM t_distancias
+    SELECT area, id_2, id_1, distancia FROM t_distancias
     UNION
-    SELECT area, perfil, perfil, 0.0 FROM t_perfiles
+    SELECT area, id, id, 0.0 FROM t_perfiles
     ORDER BY 1, 2, 3
 ), t_matriz AS (
     SELECT   area,
-             perfil_1 AS perfil,
-             ARRAY_AGG(distancia ORDER BY perfil_2) AS vector
+             id_1 AS id,
+             ARRAY_AGG(distancia ORDER BY id_2) AS vector
     FROM     t_vectores
     GROUP BY area,
-             perfil_1
+             id_1
     ORDER BY area,
-             perfil_1
+             id_1
 ), t_pares_matriz AS (
     SELECT  v1.area,
-            v1.perfil AS perfil_1,
+            v1.id     AS id_1,
             v1.vector AS vector_1,
-            v2.perfil AS perfil_2,
+            v2.id     AS id_2,
             v2.vector AS vector_2
     FROM    t_matriz v1
             JOIN t_matriz v2
             ON v1.area = v2.area AND
-               v1.perfil < v2.perfil
+               v1.id < v2.id
 ), t_distancias_matriz AS (
     SELECT  area,
-            perfil_1,
-            perfil_2,
+            id_1,
+            id_2,
             1.0 -
             (
                 SELECT SUM(a * b) AS dot_product
@@ -98,22 +104,59 @@ WITH t_perfiles AS (
     GROUP BY area
 ), t_distancias_normalizadas AS (
     SELECT dm.area,
-           dm.perfil_1,
-           dm.perfil_2,
+           dm.id_1,
+           dm.id_2,
            (dm.distancia - em.min) / em.denom AS distancia
     FROM   t_distancias_matriz dm
            JOIN t_estad_distancias em ON dm.area = em.area
+    WHERE  (dm.distancia - em.min) / em.denom < 0.25
+), t_distancias_completas AS (
+    SELECT area, id_1, id_2,distancia FROM t_distancias_normalizadas
     UNION
-    SELECT  area,
-            perfil,
-            perfil,
-            0.0
-    FROM    t_perfiles
+    SELECT area, id_2, id_1, distancia FROM t_distancias_normalizadas
+    UNION
+    SELECT area, id, id, 0 FROM t_perfiles
+), t_pares_finales AS (
+SELECT   dn.area,
+         dn.id_1,
+         dn.id_2
+         -- dn.distancia,
+         -- ps.ocurrencias
+FROM     t_distancias_completas dn
+         JOIN t_perfiles ps
+         ON dn.area = ps.area AND
+            dn.id_1 = ps.id
+ORDER BY area,
+         ps.ocurrencias DESC,
+         distancia,
+         id_1,
+         id_2
+), t_clusters AS (
+    WITH RECURSIVE clusters AS (
+        SELECT area,
+               id,
+               id             AS num_cluster,
+               ARRAY[]::INT[] AS visited
+        FROM   t_perfiles
+        UNION ALL
+        SELECT p.area,
+               p.id_2,
+               LEAST(c.num_cluster, p.id_2),
+               visited || p.id_2
+        FROM   clusters c
+               JOIN t_pares_finales p
+               ON c.area = p.area AND
+                  c.id = p.id_1
+        WHERE  NOT p.id_1 = ANY(c.visited)
+    )
+    SELECT * FROM clusters
 )
-SELECT   area,
-         perfil_1,
-         perfil_2,
-         distancia
-FROM     t_distancias_normalizadas
-WHERE    distancia < 0.5
-ORDER BY area, perfil_1, distancia, perfil_2;
+SELECT DISTINCT c.area,
+       c.num_cluster,
+       c.id,
+       p.perfil
+FROM   t_clusters c
+       JOIN t_perfiles p
+       ON c.area = p.area AND
+          c.id = p.id
+ORDER BY c.area, c.num_cluster;
