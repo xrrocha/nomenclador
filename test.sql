@@ -109,7 +109,7 @@ WITH t_perfiles AS (
            (dm.distancia - em.min) / em.denom AS distancia
     FROM   t_distancias_matriz dm
            JOIN t_estad_distancias em ON dm.area = em.area
-    WHERE  (dm.distancia - em.min) / em.denom < 0.25
+    WHERE  (dm.distancia - em.min) / em.denom < 0.2737
 ), t_distancias_completas AS (
     SELECT area, id_1, id_2,distancia FROM t_distancias_normalizadas
     UNION
@@ -131,16 +131,18 @@ ORDER BY area,
          distancia,
          id_1,
          id_2
-), t_clusters AS (
+), t_pasos_cluster AS (
     WITH RECURSIVE clusters AS (
         SELECT area,
                id,
+               FALSE          AS clustered,
                id             AS num_cluster,
                ARRAY[]::INT[] AS visited
         FROM   t_perfiles
-        UNION ALL
+        UNION 
         SELECT p.area,
                p.id_2,
+               TRUE,
                LEAST(c.num_cluster, p.id_2),
                visited || p.id_2
         FROM   clusters c
@@ -149,14 +151,57 @@ ORDER BY area,
                   c.id = p.id_1
         WHERE  NOT p.id_1 = ANY(c.visited)
     )
-    SELECT * FROM clusters
+    SELECT *
+    FROM   clusters
+    WHERE  clustered
+), t_elementos_cluster AS (
+    SELECT c.area,
+                    c.num_cluster,
+                    c.id,
+                    p.perfil
+    FROM            t_pasos_cluster c
+                    JOIN t_perfiles p
+                    ON c.area = p.area AND
+                       c.id = p.id
+    ORDER BY        c.area, c.num_cluster
+), t_clusters AS (
+    SELECT   area,
+            num_cluster,
+            ARRAY_AGG(
+                ARRAY_TO_STRING(perfil, ' ')
+                ORDER BY id
+            )  AS cluster
+    FROM     t_elementos_cluster
+    GROUP BY area,
+            num_cluster
+    ORDER BY area,
+            num_cluster
 )
-SELECT DISTINCT c.area,
-       c.num_cluster,
-       c.id,
-       p.perfil
-FROM   t_clusters c
-       JOIN t_perfiles p
-       ON c.area = p.area AND
-          c.id = p.id
-ORDER BY c.area, c.num_cluster;
+SELECT num_cluster, array_length(cluster, 1), cluster
+FROM (
+SELECT num_cluster,
+       ARRAY_AGG(
+        ARRAY_TO_STRING(p.perfil, ',')
+        ORDER BY xvisited
+       ) AS cluster
+FROM (
+        SELECT   area,
+                 MIN(num_cluster) AS num_cluster,
+                 UNNEST(visited) AS xvisited
+        FROM     t_pasos_cluster
+        GROUP BY area, xvisited
+        ORDER BY area, num_cluster
+     ) c
+     JOIN t_perfiles p
+     ON c.area = p.area AND c.xvisited = p.id
+GROUP BY num_cluster
+)
+ORDER BY ARRAY_LENGTH(cluster, 1) DESC, num_cluster;
+
+-- SELECT area, perfil, num_cluster
+-- FROM   t_elementos_cluster
+-- ORDER BY 1, 2, 3;
+
+-- SELECT DISTINCT(distancia)
+-- FROM t_distancias_normalizadas
+-- ORDER BY 1;
