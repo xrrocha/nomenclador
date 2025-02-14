@@ -1,6 +1,2 @@
-corpus.tsv
-crear-corpus.sh
-crear-diccionario.sh
-diccionario.tsv
-encuestas.tsv.xz
-escuelas-sinec.tsv
+*.tsv
+*2003*
