@@ -2,6 +2,8 @@
 \set ECHO all
 \set ON_ERROR_STOP on
 
+DROP TABLE IF EXISTS nombres_normalizados;
+CREATE TABLE nombres_normalizados AS
 WITH desacentuados AS (
     SELECT area,
            nombre,
@@ -96,17 +98,23 @@ WITH desacentuados AS (
              END        AS palabra
     FROM     palabras_puntuadas
     ORDER BY area, nombre, posicion
-), nombres_normalizados AS (
-    SELECT   area,
-             nombre,
-             ARRAY_TO_STRING(
-                ARRAY_AGG(palabra ORDER BY posicion),
-                ' '
-             ) AS nombre_normalizado
-    FROM     palabras_apostrofe
-    GROUP BY area, nombre
-    ORDER BY area, nombre
-), palabras_solas AS (
+)
+SELECT   area,
+         nombre,
+         ARRAY_TO_STRING(
+            ARRAY_AGG(
+                palabra
+                ORDER BY posicion
+            ),
+            ' '
+         ) AS nombre_normalizado
+FROM     palabras_apostrofe
+GROUP BY area, nombre
+ORDER BY area, nombre;
+
+DROP TABLE IF EXISTS palabras;
+CREATE TABLE palabras AS
+WITH palabras_solas AS (
     SELECT   palabra,
              COUNT(*) AS ocurrencias
     FROM     nombres_normalizados n
@@ -115,18 +123,18 @@ WITH desacentuados AS (
     WHERE    palabra != ''
     GROUP BY palabra
 ), estad_palabras AS (
-    SELECT   MIN(ocurrencias)                          AS min,
-             MAX(ocurrencias) - MIN(ocurrencias)::REAL AS denom
+    SELECT   MIN(ocurrencias)::REAL                      AS min,
+             (MAX(ocurrencias) - MIN(ocurrencias))::REAL AS denom
     FROM     palabras_solas
-), palabras_normalizadas AS (
-    SELECT palabra,
-           ocurrencias,
-           1.0 - ((ocurrencias - min) / denom) AS relevancia
-    FROM palabras_solas p,
-         estad_palabras a
 )
-select area, nombre_normalizado, count(*),
-       array_agg(nombre order by nombre)
+SELECT   palabra,
+         ocurrencias,
+         1.0 - ((ocurrencias - min) / denom) AS relevancia
+FROM     palabras_solas p,
+         estad_palabras a
+ORDER BY palabra;
+
+select area, nombre_normalizado, count(*)
 from nombres_normalizados
 group by area, nombre_normalizado
 order by 3 desc, 1, 2;
