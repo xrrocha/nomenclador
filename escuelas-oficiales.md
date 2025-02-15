@@ -191,7 +191,11 @@ De interés para nuestro propósito son los símbolos:
 - Apóstropfe `'`, empleados en ciertos apellidos como `D'ALAMBERT` u
   `O'LEARY`
 
-Examinemos estos casos en orden de relativa complejidad:
+Una rápida inspección de los signos de puntuación restantes nos muestra que
+estos pueden ser removidos (o, más precisamente, _reemplazados por espacios_,
+para evitar la juntura accidental de palabras separadas por ellos).
+
+Examinemos estos casos en orden de complejidad relativa:
 
 #### Apóstrofe
 
@@ -208,6 +212,7 @@ WHERE    palabra LIKE '%''%'
 GROUP BY PALABRA
 ORDER BY 2 DESC, 1;
 ```
+
 |     Palabra     | Cuenta |
 |-----------------|--------|
 | O'LEARY         |      2 |
@@ -220,46 +225,136 @@ En estas palabras se consideran apropiados los prefijo `D'` antes de una vocal
 y `O'` antes de cualquier otro alfabético. En los demás casos se suprime el
 apóstrofe (reemplazándolo por un espacio).
 
-#### Signo de numeral
+#### Superíndice `°`
 
-Una rápida inspección de los signos de puntuación restantes nos muestra que
-estos pueden ser removidos (o, más precisamente, _reemplazados por espacios_,
-para evitar la juntura accidental de palabras separadas por ellos).
+Las siguientes palabras ilustran los patrones de uso del superíndice `°`:
+
+```sql
+SELECT   palabra,
+         COUNT(*)   AS cuenta
+FROM     escuelas.escuelas e
+         JOIN LATERAL
+            REGEXP_SPLIT_TO_TABLE(e.nombre, '\s+') AS palabra
+         ON TRUE
+WHERE    palabra LIKE '%°%'
+GROUP BY PALABRA
+ORDER BY 2 DESC, 1;
+```
+
+|    Palabra    | Cuenta |
+|---------------|-------:|
+| N°            |      7 |
+| N°.           |      3 |
+| N°10          |      3 |
+| N°2           |      3 |
+| N°1           |      2 |
+| 1°            |      1 |
+| 2°            |      1 |
+| **GAMALIEL°** |      1 |
+
+Este superíndice se emplea para construir el prefijo de numeral `N°` así como
+los ordinales `1°` y `2°`.
+
+Por razones que se detallan en la siguiente sección es de suma importancia
+preservar estos numerales.
+
+En otros casos que no corresponden a numerales (p. ejm., `GAMALIEL°` arriba)
+este signo se remueve reemplazándolo por un espacio.
+
+#### Signo de numeral
 
 El signo `#` es especial porque se emplea muy frecuentemente para asociar el
 nombre de la escuela con su número:
 
 ```sql
-SELECT DISTINCT
-    TRIM((REGEXP_MATCH(nombre, '# ?[[:digit:]]+'))[1])
-    AS numeral
-FROM escuelas.escuelas
+SELECT nombre
+FROM   escuelas.escuelas
+WHERE  nombre ~ '#\s*[[:digit:]]';
 ```
 
-|  Numeral  |
-|-----------|
-|  # 29     |
-|  **#587** |
-|  # 207    |
-|  # 716    |
-|  **#44**  |
-|  # 634    |
-|  # 263    |
-|  # 292    |
+|            Nombre            |
+|------------------------------|
+| ELOY ALFARO # 1              |
+| REPUBLICA DE BRASIL # 30     |
+| TARQUI  # 7                  |
+| CONSEJO PROVINCIAL **#518**  |
+| BEATRIZ ERAZURI (# 362)      |
+| JUAN MONTALVO (# 1)          |
 
 Como se aprecia, la mayoría de tales numerales ocurren con un espacio entre
 el signo `#` y los dígitos. Ocasionalmente, sin embargo, se omite este espacio
 intermedio y nuestra estandarización debe abarcar ambos casos.
 
-En los nombres irregulares que debemos clusterizar también se emplea
-profusamente el numeral de la escuela. Es importante preservar estos numerales
-_como palabra de diccionario_. Si los suprimiéramos habría ambigüedad (y, dada
-nuestra estrategia de clusterización, pérdida de valiosa información) en casos
-como:
+> 👉 En los nombres irregulares que debemos clusterizar también se emplea
+profusamente el numeral de la escuela.
+
+Es importante preservar estos numerales _como palabra de diccionario_. Si los
+suprimiéramos habría ambigüedad (y, dada nuestra estrategia de clusterización,
+pérdida de valiosa información) en casos como:
 
 |            Nombre         |
 |---------------------------|
 | **24** DE MAYO **# 24**   |
 | **3** DE NOVIEMBRE **#3** |
 
-#### Superíndice `°`
+#### Signo punto
+
+El signo punto ocurre frecuentemente en las abreviaturas presentes en nuestro
+corpus, incluyendo ciertos usos irregulares que deben ser corregidos como
+parte de la normalización:
+
+```sql
+SELECT nombre
+FROM   escuelas.escuelas
+WHERE  nombre ~ '\.';
+```
+
+|                    Nombre            |
+|------------------------------------- |
+| AB. JOAQUIN COLINA                   |
+| DOLORES J. TORRES                    |
+| DR. ALFARO AUGUSTO DEL POZO          |
+| EE.UU. DE NORTEAMERICA # 1           |
+| F.A.E.                               |
+| GRAL. JOSE DE VILLAMIL               |
+| I.T.S. SALESIANO                     |
+| ***INST.TEC.SUP.ANDRES F.CORDOVA***  |
+| ANDRES **F.CORDOVA**                 |
+| **DR.CARLOS** RUFINO MARIN           |
+| **INST.PEDAG.INTER.BIL.** (INDIGENA) |
+| **INST.TEC.** SUPERIOR TRES DE MARZO |
+| **SIN NOMBRE-SAN FRANC.CAÑAY**       |
+
+Los usos apropiados del signo punto en abreviaturas son:
+
+- Una o más letras seguidas de un punto:
+  - `AB.` por _ABOGADO_
+  - `GRAL.` por _GENERAL_
+- Secuencia de una o más parejas de una letra seguida de punto:
+  - `F.A.E` por _FUERZA AÉREA ECUATORIANA_
+  - `I.T.S.` por _INSTITUTO TÉCNICO SUPERIOR_
+- Secuencia de una o más parejas _de un mismo alfabético_ seguido de punto:
+  - `EE.UU.` por _ESTADOS UNIDOS_
+  - `FF.AA.` por _FUERZAS ARMADAS_
+
+Ocasionalmente en este corpus se omite el punto final de la abreviatura:
+
+- `DR` en vez de `DR.`
+- `I.T.S` en vez de `I.T.S.`
+- `EE.UU` en vez de `EE.UU.`
+
+_Todos_ los demás usos de punto se reemplazan por un espacio en blanco.
+Esto resuelve un error muy común en este corpus consistente en no colocar
+espacios en blanco entre abreviaturas consecutivas:
+
+- `INST.PEDAG.INTER.BIL. (INDIGENA)` se separa en
+  `INST. PEDAG. INTER. BIL. (INDIGENA)`
+- `INST.TEC. SUPERIOR` se separa en `INST. TEC. SUPERIOR`
+
+En los nombres irregulares que debemos clusterizar también se emplean
+frecuentemente abreviaturas (así como su concatenación sin espacios).
+
+> 👉 Una buena opción para el diccionario oficial de términos es añadir a las
+> abreviaturas mismas sus formas completas. Así, por ejemplo, `LICENCIADO`
+> aparecería en el diccionario _aun si en el corpus aparece únicamente la
+> abreviatura `LCDO.`_
