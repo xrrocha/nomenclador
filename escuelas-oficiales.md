@@ -199,7 +199,7 @@ Examinemos estos casos en orden de complejidad relativa:
 
 #### Apóstrofe
 
-Las siguientes palabras contienen apóstrofes:
+Las siguientes palabras ilustran el uso de apóstrofes en el corpus:
 
 ```sql
 SELECT   palabra,
