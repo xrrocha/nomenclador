@@ -3,20 +3,21 @@
 \set ON_ERROR_STOP on
 
 WITH desacentuados AS (
-    SELECT nombre,
+    SELECT area,
+           nombre,
            TRANSLATE(
                 nombre,
                 'ÁÉÍÓÚÜ',
                 'AEIOUU'
-           ) AS nombre_normalizado
+           ) AS nombre_desacentuado
      FROM  escuelas.escuelas
 ), puntuacion AS (
     SELECT   SUBSTR(p, i, 1) AS signo,
              COUNT(*)        AS cuenta
     FROM     desacentuados e
              JOIN LATERAL REGEXP_SPLIT_TO_TABLE(
-                 e.nombre_normalizado,
-                 '[.#°ᵃ''[:alpha:][:digit:]]+'
+                 e.nombre_desacentuado,
+                 '[#.°''[:alpha:][:digit:]]+'
              ) p ON TRUE
              JOIN LATERAL GENERATE_SERIES(1, LENGTH(p)) i ON TRUE
     WHERE   SUBSTR(p, i, 1) != ' '
@@ -26,36 +27,33 @@ WITH desacentuados AS (
     SELECT ARRAY_TO_STRING(ARRAY_AGG(signo), '') AS patron
     FROM   puntuacion
 ), reducidos AS (
-    SELECT  nombre,
-            TRANSLATE(
-                nombre_normalizado,
+    SELECT  area,
+            nombre,
+            TRIM(TRANSLATE(
+                nombre_desacentuado,
                 patron,
                 REPEAT(' ', LENGTH(patron))
-            ) AS nombre_normalizado
+            )) AS nombre_reducido
     FROM    desacentuados,
             patron_puntuacion
+), reducidos_numeral AS (
+    SELECT area,
+           nombre,
+           REGEXP_REPLACE(
+                nombre_reducido,
+                '((#|N[O0°])[ .]+([[:digit:]]))', '#\3'
+           ) AS nombre_reducido
+    FROM   reducidos
 )
-SELECT   SUBSTR(p, i, 1) AS signo,
-         COUNT(*)        AS cuenta
-FROM     desacentuados e
+SELECT DISTINCT
+         area,
+         nombre,
+         nombre_reducido,
+         posicion,
+         palabra
+FROM     reducidos_numeral r
          JOIN LATERAL REGEXP_SPLIT_TO_TABLE(
-             e.nombre_normalizado,
-             '[ [:alnum:]]+'
-         ) p ON TRUE
-         JOIN LATERAL GENERATE_SERIES(1, LENGTH(p)) i ON TRUE
-GROUP BY signo
-ORDER BY cuenta DESC, signo;
-
-
--- SELECT   REPLACE(p, '.', '. ') AS palabra,
---          COUNT(*)              AS cuenta
--- FROM     reducidos r
---          JOIN LATERAL
---          REGEXP_SPLIT_TO_TABLE(r.nombre_normalizado, '\s+') p ON TRUE
--- WHERE    p != ''
---   AND    p LIKE '%.%'
---   AND    p !~ '^[A-Z]+\.$'
---   AND    p !~ '^[A-Z]\.([A-Z]\.)*[A-Z]?$'
---   AND    p !~ '^([A-Z]{2}\.){2}'
--- GROUP BY p
--- ORDER BY 2 DESC, 1;
+            r.nombre_reducido,
+            '\s+'
+         ) WITH ORDINALITY AS p(palabra, posicion) ON TRUE
+ORDER BY area, nombre, nombre_reducido, posicion, palabra;
