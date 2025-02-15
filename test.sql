@@ -3,8 +3,7 @@
 \set ON_ERROR_STOP on
 
 WITH desacentuados AS (
-    SELECT area,
-           nombre,
+    SELECT nombre,
            TRANSLATE(
                 nombre,
                 'ÁÉÍÓÚÜ',
@@ -31,9 +30,32 @@ WITH desacentuados AS (
             TRANSLATE(
                 nombre_normalizado,
                 patron,
-                REPEAT(' ', LENGTH(patron ))
+                REPEAT(' ', LENGTH(patron))
             ) AS nombre_normalizado
     FROM    desacentuados,
             patron_puntuacion
 )
-select * from reducidos;
+SELECT   SUBSTR(p, i, 1) AS signo,
+         COUNT(*)        AS cuenta
+FROM     desacentuados e
+         JOIN LATERAL REGEXP_SPLIT_TO_TABLE(
+             e.nombre_normalizado,
+             '[ [:alnum:]]+'
+         ) p ON TRUE
+         JOIN LATERAL GENERATE_SERIES(1, LENGTH(p)) i ON TRUE
+GROUP BY signo
+ORDER BY cuenta DESC, signo;
+
+
+-- SELECT   REPLACE(p, '.', '. ') AS palabra,
+--          COUNT(*)              AS cuenta
+-- FROM     reducidos r
+--          JOIN LATERAL
+--          REGEXP_SPLIT_TO_TABLE(r.nombre_normalizado, '\s+') p ON TRUE
+-- WHERE    p != ''
+--   AND    p LIKE '%.%'
+--   AND    p !~ '^[A-Z]+\.$'
+--   AND    p !~ '^[A-Z]\.([A-Z]\.)*[A-Z]?$'
+--   AND    p !~ '^([A-Z]{2}\.){2}'
+-- GROUP BY p
+-- ORDER BY 2 DESC, 1;
