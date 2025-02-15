@@ -36,24 +36,63 @@ WITH desacentuados AS (
             )) AS nombre_reducido
     FROM    desacentuados,
             patron_puntuacion
-), reducidos_numeral AS (
+), palabras_numeral_1 AS (
     SELECT area,
            nombre,
            REGEXP_REPLACE(
                 nombre_reducido,
-                '((#|N[O0°])[ .]+([[:digit:]]))', '#\3'
+                '((#|NR?[O0°]?)[ .]*([[:digit:]]))', '#\3', 'g'
            ) AS nombre_reducido
     FROM   reducidos
+), palabras_numeral_2 AS (
+    SELECT DISTINCT
+             area,
+             nombre,
+             nombre_reducido,
+             posicion,
+             palabra
+    FROM     palabras_numeral_1 r
+             JOIN LATERAL REGEXP_SPLIT_TO_TABLE(
+                REPLACE(r.nombre_reducido, '#', ' #'),
+                '\s+'
+             ) WITH ORDINALITY AS p(palabra, posicion) ON TRUE
+    ORDER BY area, nombre, nombre_reducido, posicion, palabra
+), palabras_puntuadas AS (
+    SELECT   area,
+             nombre,
+             nombre_reducido,
+             posicion,
+             CASE
+                WHEN palabra NOT LIKE '%.%' THEN palabra
+                ELSE CASE
+    
+                    WHEN palabra ~ '^[A-Z]+\.$' THEN palabra
+                    WHEN palabra ~ '^([A-Z]\.)+[A-Z]$' THEN palabra || '.'
+    
+                    WHEN palabra ~ '^([A-Z]\.)+$' THEN palabra
+                    WHEN palabra ~ '^([A-Z]\.)+[A-Z]{2,}$' THEN
+                        REGEXP_REPLACE(palabra, '^(([A-Z]\.)+)([A-Z]{2,})$', '\1 \3')
+    
+                    WHEN palabra ~ '^([A-Z]{2}\.){2}$' THEN palabra
+                    WHEN palabra ~ '^(([A-Z]{2}\.){2})[A-Z]{2,}' THEN
+                        REGEXP_REPLACE(palabra, '^(([A-Z]{2}\.){2})([A-Z]{2,})$', '\1 \3')
+                    ELSE REPLACE(palabra, '.', '. ')
+                END
+             END      AS palabra
+    FROM     palabras_numeral_2
+    ORDER BY area, nombre, nombre_reducido, posicion
 )
-SELECT DISTINCT
-         area,
+-- TODO INS.TEC.SUP[^.]
+SELECT   area,
          nombre,
-         nombre_reducido,
          posicion,
-         palabra
-FROM     reducidos_numeral r
-         JOIN LATERAL REGEXP_SPLIT_TO_TABLE(
-            r.nombre_reducido,
-            '\s+'
-         ) WITH ORDINALITY AS p(palabra, posicion) ON TRUE
-ORDER BY area, nombre, nombre_reducido, posicion, palabra;
+         CASE
+            WHEN palabra NOT LIKE '%''%' THEN palabra
+            WHEN palabra LIKE '%D''LA%' THEN REPLACE(palabra, 'D''LA', 'DE LA')
+            WHEN palabra LIKE '%P''LA%' THEN REPLACE(palabra, 'P''LA', 'PARA LA')
+            WHEN palabra ~ 'D''[AEIOU]'
+              OR palabra ~ 'O''[A-Z]' THEN palabra
+            ELSE REPLACE(palabra, '''', ' ')
+         END        AS palabra_normalizada
+FROM     palabras_puntuadas
+ORDER BY area, nombre, posicion;
