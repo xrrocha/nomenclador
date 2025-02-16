@@ -4,6 +4,7 @@
 
 \o escuelas.log
 
+/*
 DROP TABLE IF EXISTS escuelas;
 CREATE TABLE escuelas (
     area   VARCHAR(6)       NOT NULL,
@@ -143,6 +144,34 @@ SELECT   palabra,
 FROM     palabras_solas p,
          estad_palabras a
 ORDER BY palabra;
+
+DROP TABLE IF EXISTS palabras_nombre;
+CREATE TABLE palabras_nombre AS
+SELECT n.nombre_normalizado  AS nombre,
+       p.posicion,
+       p.palabra
+FROM (
+    SELECT DISTINCT nombre_normalizado
+    FROM nombres_normalizados
+) n
+JOIN LATERAL REGEXP_SPLIT_TO_TABLE(n.nombre_normalizado, '\s+')
+    WITH ORDINALITY AS p(palabra, posicion) ON TRUE
+ORDER BY nombre_normalizado, posicion;
+CREATE UNIQUE INDEX pn_posicion ON palabras_nombres(nombre, posicion);
+CREATE INDEX pn_palabra ON palabras_nombres(palabra);
+
+DROP TABLE IF EXISTS diccionario;
+CREATE TABLE diccionario (
+    palabra VARCHAR(48) NOT NULL UNIQUE
+);
+\COPY diccionario FROM data/diccionario-reducido.tsv;
+
+DROP TABLE IF EXISTS nombres_personales;
+CREATE TABLE nombres_personales (
+    palabra VARCHAR(48) NOT NULL UNIQUE
+);
+\COPY nombres_personales FROM data/nombres-personales.tsv;
+*/
 
 \o
 \q

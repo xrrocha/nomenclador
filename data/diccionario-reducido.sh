@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 xz -d < diccionario-completo.tsv.xz |\
-tr '[:lower:]' '[:upper:]' |\
-tr 'ÁÉÍÓÚÜ' 'AEIOUU' |\
 sort -u |\
+tee diccionario-completo.tsv |\
+tr '[:lower:]' '[:upper:]' |\
+tr 'ÁÉÈÍÓÚÜ' 'AEEIOUU' |\
+sort -u |\
+tee diccionario-reducido.tsv |\
 xz -z > diccionario-reducido.tsv.xz
