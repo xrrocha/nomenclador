@@ -21,39 +21,60 @@ ORDER BY distancia;
 
 DROP TABLE IF EXISTS distancias_vectores;
 CREATE TABLE distancias_vectores AS
-WITH palabras AS (
-    SELECT    p1 AS palabra
-    FROM      distancias_edicion
+WITH pares AS (
+    SELECT   p1, p2
+    FROM     distancias_edicion
     UNION
-    SELECT    p2
-    FROM      distancias_edicion
-    ORDER BY palabra
-), distancias AS (
-    SELECT   p1.palabra                                AS p1,
-             p2.palabra                                AS p2,
-             distancia_edicion(p1.palabra, p2.palabra) AS distancia
-    FROM     palabras p1
-             JOIN palabras p2 ON p1.palabra < p2.palabra
+    SELECT   p2, p1
+    FROM     distancias_edicion
+    UNION
+    SELECT   p1, p1
+    FROM (
+        SELECT p1 FROM distancias_edicion
+        UNION
+        SELECT p2 FROM distancias_edicion
+    )
     ORDER BY p1, p2
-), todos AS (
-    SELECT p1, p2, distancia FROM distancias
-    UNION
-    SELECT p2, p1, distancia FROM distancias
-    UNION
-    SELECT palabra, palabra, 0.0 FROM palabras
-), vectores AS (
+), perfiles AS (
     SELECT   p1 AS palabra,
-             ARRAY_AGG(distancia ORDER BY p2) AS vector
-    FROM     todos
+             ARRAY_AGG(p2 ORDER BY p2) AS perfil
+    FROM     pares
     GROUP BY p1
     ORDER BY p1
-), pares AS (
-    SELECT v1.palabra AS p1,
-           v2.palabra AS p2,
-           v1.vector AS v1,
-           v2.vector AS v2
-    FROM   vectores v1
-           JOIN vectores v2 ON v1.palabra < v2.palabra
+), pares_perfiles AS (
+    SELECT d.p1,
+           d.p2,
+           (
+                SELECT ARRAY_AGG(p ORDER BY p)
+                FROM (
+                    SELECT UNNEST(v1.perfil) AS p
+                    UNION
+                    SELECT UNNEST(v2.perfil)
+                )
+           ) AS perfil
+    FROM distancias_edicion d
+         JOIN perfiles v1 ON d.p1 = v1.palabra
+         JOIN perfiles v2 ON d.p2 = v2.palabra
+    ORDER BY d.p1, d.p2
+), vectores_perfil AS (
+    SELECT   p1,
+             p2,
+             (
+                  SELECT ARRAY_AGG(
+                      distancia_edicion(p1, termino)
+                      ORDER BY termino
+                  )
+                  FROM   UNNEST(perfil) termino
+             ) AS v1,
+             (
+                  SELECT ARRAY_AGG(
+                      distancia_edicion(p2, termino)
+                      ORDER BY termino
+                  )
+                  FROM   UNNEST(perfil) termino
+             ) AS v2
+    FROM     pares_perfiles
+    ORDER BY p1, p2
 ), distancia_vectores AS (
     SELECT  p1,
             p2,
@@ -68,19 +89,7 @@ WITH palabras AS (
                     (SELECT SQRT(SUM(p2 * p2)) FROM UNNEST(v1) p2)
                     AS magnitude
             ) AS distancia -- 1.0 - similitud_coseno
-    FROM    pares
-), estad_distancias AS (
-    SELECT  MIN(distancia)                    AS min,
-            (MAX(distancia) - MIN(distancia)) AS denom
-    FROM    distancia_vectores
-), distancias_normalizadas AS (
-    SELECT  p1                        AS palabra_1,
-            p2                        AS palabra_2,
-            (distancia - min) / denom AS distancia
-    FROM    distancia_vectores,
-            estad_distancias
+    FROM    vectores_perfil
 )
 SELECT   *
-FROM     distancias_normalizadas
-WHERE    distancia < 0.5
-ORDER BY distancia, palabra_1, palabra_2
+FROM     distancia_vectores;
