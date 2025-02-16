@@ -2,139 +2,85 @@
 \set ECHO all
 \set ON_ERROR_STOP on
 
-DROP TABLE IF EXISTS nombres_normalizados;
-CREATE TABLE nombres_normalizados AS
-WITH desacentuados AS (
-    SELECT area,
-           nombre,
-           TRANSLATE(
-                nombre,
-                'ÁÉÍÓÚÜ',
-                'AEIOUU'
-           ) AS nombre_desacentuado
-     FROM  escuelas.escuelas
-), puntuacion AS (
-    SELECT   SUBSTR(p, i, 1) AS signo,
-             COUNT(*)        AS cuenta
-    FROM     desacentuados e
-             JOIN LATERAL REGEXP_SPLIT_TO_TABLE(
-                 e.nombre_desacentuado,
-                 '[#.°''[:alpha:][:digit:]]+'
-             ) p ON TRUE
-             JOIN LATERAL GENERATE_SERIES(1, LENGTH(p)) i ON TRUE
-    WHERE   SUBSTR(p, i, 1) != ' '
-    GROUP BY signo
-    ORDER BY signo
-), patron_puntuacion AS (
-    SELECT ARRAY_TO_STRING(ARRAY_AGG(signo), '') AS patron
-    FROM   puntuacion
-), reducidos AS (
-    SELECT  area,
-            nombre,
-            TRIM(TRANSLATE(
-                nombre_desacentuado,
-                patron,
-                REPEAT(' ', LENGTH(patron))
-            )) AS nombre_reducido
-    FROM    desacentuados,
-            patron_puntuacion
-), palabras_numeral_1 AS (
-    SELECT area,
-           nombre,
-           REGEXP_REPLACE(
-                nombre_reducido,
-                '((#|NR?[O0°]?)[ .]*([[:digit:]]))', '#\3', 'g'
-           ) AS nombre_reducido
-    FROM   reducidos
-), palabras_numeral_2 AS (
-    SELECT DISTINCT
-             area,
-             nombre,
-             nombre_reducido,
-             posicion,
-             palabra
-    FROM     palabras_numeral_1 r
-             JOIN LATERAL REGEXP_SPLIT_TO_TABLE(
-                REPLACE(r.nombre_reducido, '#', ' #'),
-                '\s+'
-             ) WITH ORDINALITY AS p(palabra, posicion) ON TRUE
-    ORDER BY area, nombre, nombre_reducido, posicion, palabra
-), palabras_puntuadas AS (
-        SELECT   area,
-                 nombre,
-                 nombre_reducido,
-                 posicion,
-                 CASE
-                    WHEN palabra NOT LIKE '%.%' THEN palabra
-                    ELSE CASE
-        
-                        WHEN palabra ~ '^[A-Z]+\.$' THEN palabra
-                        WHEN palabra ~ '^([A-Z]\.)+[A-Z]$' THEN palabra || '.'
-        
-                        WHEN palabra ~ '^([A-Z]\.)+$' THEN palabra
-                        WHEN palabra ~ '^([A-Z]\.)+[A-Z]{2,}$' THEN
-                            REGEXP_REPLACE(palabra, '^(([A-Z]\.)+)([A-Z]{2,})$', '\1 \3')
-        
-                        WHEN palabra ~ '^([A-Z]{2}\.){2}$' THEN palabra
-                        WHEN palabra ~ '^(([A-Z]{2}\.){2})[A-Z]{2,}' THEN
-                            REGEXP_REPLACE(palabra, '^(([A-Z]{2}\.){2})([A-Z]{2,})$', '\1 \3')
-                        ELSE REPLACE(palabra, '.', '. ')
-                    END
-                 END      AS palabra
-        FROM     palabras_numeral_2
-        ORDER BY area, nombre, nombre_reducido, posicion
-), palabras_apostrofe AS (
-    -- TODO INS.TEC.SUP[^.]
-    SELECT   area,
-             nombre,
-             posicion,
-             CASE
-                WHEN palabra NOT LIKE '%''%' THEN palabra
-                WHEN palabra LIKE '%D''LA%' THEN REPLACE(palabra, 'D''LA', 'DE LA')
-                WHEN palabra LIKE '%P''LA%' THEN REPLACE(palabra, 'P''LA', 'PARA LA')
-                WHEN palabra ~ 'D''[AEIOU]'
-                  OR palabra ~ 'O''[A-Z]' THEN palabra
-                ELSE REPLACE(palabra, '''', ' ')
-             END        AS palabra
-    FROM     palabras_puntuadas
-    ORDER BY area, nombre, posicion
+/*
+DROP TABLE IF EXISTS distancias_edicion;
+CREATE TABLE distancias_edicion AS
+WITH distancias AS (
+    SELECT   p1.palabra                            AS p1,
+             p2.palabra                            AS p2,
+             distancia_edicion(p1.palabra, p2.palabra) AS distancia
+    FROM     palabras p1
+             JOIN palabras p2 ON p1.palabra < p2.palabra
+    ORDER BY p1, p2
 )
-SELECT   area,
-         nombre,
-         ARRAY_TO_STRING(
-            ARRAY_AGG(
-                palabra
-                ORDER BY posicion
-            ),
-            ' '
-         ) AS nombre_normalizado
-FROM     palabras_apostrofe
-GROUP BY area, nombre
-ORDER BY area, nombre;
+SELECT   *
+FROM     distancias
+WHERE    distancia <= 0.22
+ORDER BY distancia;
+*/
 
-DROP TABLE IF EXISTS palabras;
-CREATE TABLE palabras AS
-WITH palabras_solas AS (
-    SELECT   palabra,
-             COUNT(*) AS ocurrencias
-    FROM     nombres_normalizados n
-             JOIN LATERAL REGEXP_SPLIT_TO_TABLE(n.nombre_normalizado, '\s+')
-             AS palabra ON TRUE
-    WHERE    palabra != ''
-    GROUP BY palabra
-), estad_palabras AS (
-    SELECT   MIN(ocurrencias)::REAL                      AS min,
-             (MAX(ocurrencias) - MIN(ocurrencias))::REAL AS denom
-    FROM     palabras_solas
+DROP TABLE IF EXISTS distancias_vectores;
+CREATE TABLE distancias_vectores AS
+WITH palabras AS (
+    SELECT    p1 AS palabra
+    FROM      distancias_edicion
+    UNION
+    SELECT    p2
+    FROM      distancias_edicion
+    ORDER BY palabra
+), distancias AS (
+    SELECT   p1.palabra                                AS p1,
+             p2.palabra                                AS p2,
+             distancia_edicion(p1.palabra, p2.palabra) AS distancia
+    FROM     palabras p1
+             JOIN palabras p2 ON p1.palabra < p2.palabra
+    ORDER BY p1, p2
+), todos AS (
+    SELECT p1, p2, distancia FROM distancias
+    UNION
+    SELECT p2, p1, distancia FROM distancias
+    UNION
+    SELECT palabra, palabra, 0.0 FROM palabras
+), vectores AS (
+    SELECT   p1 AS palabra,
+             ARRAY_AGG(distancia ORDER BY p2) AS vector
+    FROM     todos
+    GROUP BY p1
+    ORDER BY p1
+), pares AS (
+    SELECT v1.palabra AS p1,
+           v2.palabra AS p2,
+           v1.vector AS v1,
+           v2.vector AS v2
+    FROM   vectores v1
+           JOIN vectores v2 ON v1.palabra < v2.palabra
+), distancia_vectores AS (
+    SELECT  p1,
+            p2,
+            1.0 -
+            (
+                SELECT SUM(a * b) AS dot_product
+                FROM   UNNEST(v1, v2) p(a, b)
+            ) /
+            (
+                SELECT
+                    (SELECT SQRT(SUM(p1 * p1)) FROM UNNEST(v1) p1) *
+                    (SELECT SQRT(SUM(p2 * p2)) FROM UNNEST(v1) p2)
+                    AS magnitude
+            ) AS distancia -- 1.0 - similitud_coseno
+    FROM    pares
+), estad_distancias AS (
+    SELECT  MIN(distancia)                    AS min,
+            (MAX(distancia) - MIN(distancia)) AS denom
+    FROM    distancia_vectores
+), distancias_normalizadas AS (
+    SELECT  p1                        AS palabra_1,
+            p2                        AS palabra_2,
+            (distancia - min) / denom AS distancia
+    FROM    distancia_vectores,
+            estad_distancias
 )
-SELECT   palabra,
-         ocurrencias,
-         1.0 - ((ocurrencias - min) / denom) AS relevancia
-FROM     palabras_solas p,
-         estad_palabras a
-ORDER BY palabra;
-
-select area, nombre_normalizado, count(*)
-from nombres_normalizados
-group by area, nombre_normalizado
-order by 3 desc, 1, 2;
+SELECT   *
+FROM     distancias_normalizadas
+WHERE    distancia < 0.5
+ORDER BY distancia, palabra_1, palabra_2
